@@ -16,5 +16,18 @@
       ".toml": 1,
       ".yml": 1
     }
+  },
+  "main": {
+    "timestamp": 1767477128.9074106,
+    "total_files": 11,
+    "full_stats": {
+      ".gradle": 2,
+      ".properties": 1,
+      ".txt": 4,
+      ".java": 2,
+      ".mcmeta": 1,
+      ".toml": 1
+    },
+    "omitted_stats": {}
   }
 }
