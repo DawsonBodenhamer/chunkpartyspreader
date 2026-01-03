@@ -1,0 +1,20 @@
+{
+  "develop": {
+    "timestamp": 1767475779.2245352,
+    "total_files": 625,
+    "full_stats": {},
+    "omitted_stats": {
+      ".md": 2,
+      ".txt": 3,
+      ".gradle": 5,
+      ".properties": 2,
+      ".java": 182,
+      ".json": 114,
+      ".png": 216,
+      ".mcfunction": 7,
+      ".ogg": 92,
+      ".toml": 1,
+      ".yml": 1
+    }
+  }
+}
