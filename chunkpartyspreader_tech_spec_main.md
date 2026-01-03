@@ -152,6 +152,7 @@ Before assigning a spot:
 ### 📂 `Repository Root/`
 `build.gradle`
 ```groovy
+// --- 1. Plugins and Toolchain ---
 plugins {
     id 'eclipse'
     id 'idea'
@@ -166,90 +167,68 @@ base {
     archivesName = mod_id
 }
 
-// Mojang ships Java 17 to end users in 1.18+, so your mod should target Java 17.
 java.toolchain.languageVersion = JavaLanguageVersion.of(17)
 
+// --- 2. Minecraft Configuration ---
 minecraft {
     mappings channel: mapping_channel, version: mapping_version
-
-    // This makes IntelliJ/Gradle copy resources into the run dir, so changes apply without rebuilding the jar.
     copyIdeResources = true
 
     runs {
-        client {
+        configureEach {
             workingDirectory project.file('run')
 
             property 'forge.logging.markers', 'REGISTRIES'
             property 'forge.logging.console.level', 'debug'
 
+            property 'mixin.env.remapRefMap', 'true'
+            property 'mixin.env.refMapRemappingEnv', 'searge'
+            property 'mixin.env.refMapRemappingFile', file("$buildDir/createSrgToMcp/output.srg").absolutePath
+        }
+
+        client {
             mods {
-                "${mod_id}" {
-                    source sourceSets.main
-                }
+                "${mod_id}" { source sourceSets.main }
             }
         }
 
         server {
-            workingDirectory project.file('run')
-
-            property 'forge.logging.markers', 'REGISTRIES'
-            property 'forge.logging.console.level', 'debug'
-
             args '--nogui'
-
             mods {
-                "${mod_id}" {
-                    source sourceSets.main
-                }
+                "${mod_id}" { source sourceSets.main }
             }
         }
 
-        // Optional: server with GameTests enabled
         gameTestServer {
-            workingDirectory project.file('run')
-
-            property 'forge.logging.markers', 'REGISTRIES'
-            property 'forge.logging.console.level', 'debug'
-
             args '--nogui'
-
             mods {
-                "${mod_id}" {
-                    source sourceSets.main
-                }
+                "${mod_id}" { source sourceSets.main }
             }
         }
 
-        // Optional: generates data (loot tables, tags, etc.)
         data {
-            workingDirectory project.file('run')
-
-            property 'forge.logging.markers', 'REGISTRIES'
-            property 'forge.logging.console.level', 'debug'
-
-            args '--mod', mod_id, '--all',
-                    '--output', file('src/generated/resources/'),
-                    '--existing', file('src/main/resources/')
-
+            args '--mod', mod_id, '--all', '--output', file('src/generated/resources/'), '--existing', file('src/main/resources/')
             mods {
-                "${mod_id}" {
-                    source sourceSets.main
-                }
+                "${mod_id}" { source sourceSets.main }
             }
         }
     }
 }
 
+// --- 3. Dependencies and Repositories ---
 sourceSets.main.resources { srcDir 'src/generated/resources' }
 
 repositories {
     mavenCentral()
+    maven { url = "https://cursemaven.com" }
 }
 
 dependencies {
     minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+    implementation fg.deobf("curse.maven:chunk-by-chunk-565866:5168269")
 }
 
+// --- 4. Task Configurations ---
 tasks.named('processResources', ProcessResources).configure {
     def replaceProperties = [
             minecraft_version      : minecraft_version,
@@ -292,7 +271,6 @@ jar {
 
 jar.finalizedBy('reobfJar')
 
-// Publishing is optional; leaving it configured makes it easy to publish to a local repo folder.
 publishing {
     publications {
         register('mavenJava', MavenPublication) {
@@ -305,69 +283,33 @@ publishing {
         }
     }
 }
-
 ```
 
 `gradle.properties`
 ```properties
-# Sets default memory used for gradle commands. Can be overridden by user or command line properties.
-# This is required to provide enough memory for the Minecraft decompilation process.
+# --- 1. Gradle Environment Settings ---
+# Allocation for the Minecraft decompilation process.
 org.gradle.jvmargs=-Xmx3G
 org.gradle.daemon=false
 
-
-## Environment Properties
-
-# The Minecraft version must agree with the Forge version to get a valid artifact
+# --- 2. Toolchain and Versioning ---
 minecraft_version=1.20.1
-# The Minecraft version range can use any release version of Minecraft as bounds.
-# Snapshots, pre-releases, and release candidates are not guaranteed to sort properly
-# as they do not follow standard versioning conventions.
 minecraft_version_range=[1.20.1,1.21)
-# The Forge version must agree with the Minecraft version to get a valid artifact
 forge_version=47.4.13
-# The Forge version range can use any version of Forge as bounds or match the loader version range
 forge_version_range=[47,)
-# The loader version range can only use the major version of Forge/FML as bounds
 loader_version_range=[47,)
-# The mapping channel to use for mappings.
-# The default set of supported mapping channels are ["official", "snapshot", "snapshot_nodoc", "stable", "stable_nodoc"].
-# Additional mapping channels can be registered through the "channelProviders" extension in a Gradle plugin.
-#
-# | Channel   | Version              |                                                                                |
-# |-----------|----------------------|--------------------------------------------------------------------------------|
-# | official  | MCVersion            | Official field/method names from Mojang mapping files                          |
-# | parchment | YYYY.MM.DD-MCVersion | Open community-sourced parameter names and javadocs layered on top of official |
-#
-# You must be aware of the Mojang license when using the 'official' or 'parchment' mappings.
-# See more information here: https://github.com/MinecraftForge/MCPConfig/blob/master/Mojang.md
-#
-# Parchment is an unofficial project maintained by ParchmentMC, separate from Minecraft Forge.
-# Additional setup is needed to use their mappings, see https://parchmentmc.org/docs/getting-started
+
+# --- 3. Mapping Configuration ---
 mapping_channel=official
-# The mapping version to query from the mapping channel.
-# This must match the format required by the mapping channel.
 mapping_version=1.20.1
 
-
-## Mod Properties
-
-# The unique mod identifier for the mod. Must be lowercase in English locale. Must fit the regex [a-z][a-z0-9_]{1,63}
-# Must match the String constant located in the main mod class annotated with @Mod.
+# --- 4. Mod Metadata ---
 mod_id=chunkpartyspreader
-# The human-readable display name for the mod.
 mod_name=Chunk Party Spreader
-# The license of the mod. Review your options at https://choosealicense.com/. All Rights Reserved is the default.
 mod_license=All Rights Reserved
-# The mod version. See https://semver.org/
 mod_version=1.0.0
-# The group ID for the mod. It is only important when publishing as an artifact to a Maven repository.
-# This should match the base package used for the mod sources.
-# See https://maven.apache.org/guides/mini/guide-naming-conventions.html
 mod_group_id=com.dawson.chunkpartyspreader
-# The authors of the mod. This is a simple text string that is used for display purposes in the mod list.
 mod_authors=Dawson
-# The description of the mod. This is a simple multiline text string that is used for display purposes in the mod list.
 mod_description=Server-side utility mod that assigns each new player a unique home chunk in a spiral pattern and optionally pre-generates it via Chunk By Chunk.
 ```
 
@@ -2112,6 +2054,106 @@ Forge Mod Loader downloads components from the Minecraft Coder Pack
 ```
 
 ### 📂 `src/main/java/com/dawson/chunkpartyspreader/`
+`ChunkByChunkCompat.java`
+```java
+package com.dawson.chunkpartyspreader;
+
+// (Imports omitted to save token count)
+
+/**
+ * Direct integration with Chunk By Chunk API.
+ * This class MUST only be accessed if the mod is loaded.
+ */
+public final class ChunkByChunkCompat {
+
+    private ChunkByChunkCompat() {}
+
+    // --- Reflection Cache ---
+    private static Field SEAL_COVER_BLOCK_FIELD;
+
+    /**
+     * Triggers the generation of a specific chunk using Chunk By Chunk's internal controller.
+     */
+    public static boolean generateChunk(ServerLevel level, BlockPos centerPos) {
+        MinecraftServer server = level.getServer();
+        ChunkSpawnController controller = ChunkSpawnController.get(server);
+        return controller.request(level, "", false, centerPos);
+    }
+
+    /**
+     * Forces Chunk By Chunk's SkyChunkGenerator to spawn 0 initial chunks on startup.
+     * This prevents a "Ghost Chunk" from generating at the default world spawn.
+     */
+    public static void disableCbcStartupInitialChunks(MinecraftServer server) {
+        if (!ModList.get().isLoaded("chunkbychunk")) {
+            return;
+        }
+
+        ServerLevel overworld = server.overworld();
+        ChunkGenerator cg = overworld.getChunkSource().getGenerator();
+
+        // 1. Verify we are actually running on a CBC world
+        if (!(cg instanceof SkyChunkGenerator skyGen)) {
+            ChunkPartySpreader.LOGGER.info(
+                    "[Chunk Party Spreader] - CBC detected but overworld generator is not SkyChunkGenerator: {}",
+                    cg.getClass().getName()
+            );
+            return;
+        }
+
+        int before = skyGen.getInitialChunks();
+        if (before == 0) {
+            ChunkPartySpreader.LOGGER.info("[Chunk Party Spreader] - CBC SkyChunkGenerator initialChunks already 0; nothing to change.");
+            return;
+        }
+
+        // 2. Extract existing settings so we don't break the user's config
+        ResourceKey<Level> generationLevel = skyGen.getGenerationLevel();
+        SkyChunkGenerator.EmptyGenerationType generationType = skyGen.getGenerationType();
+        Block sealBlock = skyGen.getSealBlock();
+        Block sealCoverBlock = getSealCoverBlockReflective(skyGen);
+        boolean chunkSpawnerAllowed = skyGen.isChunkSpawnerAllowed();
+        boolean randomChunkSpawnerAllowed = skyGen.isRandomChunkSpawnerAllowed();
+
+        // 3. Re-apply configuration but force initialChunks = 0
+        skyGen.configure(
+                generationLevel,
+                generationType,
+                sealBlock,
+                sealCoverBlock,
+                0, // <--- The Fix: Force Zero Initial Chunks
+                chunkSpawnerAllowed,
+                randomChunkSpawnerAllowed
+        );
+
+        ChunkPartySpreader.LOGGER.warn(
+                "[Chunk Party Spreader] - CBC startup initial chunk spawning DISABLED (initialChunks {} -> 0).",
+                before
+        );
+    }
+
+    /**
+     * Helper to read the private 'sealCoverBlock' field via reflection.
+     */
+    private static Block getSealCoverBlockReflective(SkyChunkGenerator gen) {
+        try {
+            if (SEAL_COVER_BLOCK_FIELD == null) {
+                Field f = SkyChunkGenerator.class.getDeclaredField("sealCoverBlock");
+                f.setAccessible(true);
+                SEAL_COVER_BLOCK_FIELD = f;
+            }
+            return (Block) SEAL_COVER_BLOCK_FIELD.get(gen);
+        } catch (Throwable t) {
+            ChunkPartySpreader.LOGGER.error(
+                    "[Chunk Party Spreader] - Failed to read CBC SkyChunkGenerator.sealCoverBlock via reflection; falling back to sealBlock.",
+                    t
+            );
+            return gen.getSealBlock();
+        }
+    }
+}
+```
+
 `ChunkPartySpreader.java`
 ```java
 package com.dawson.chunkpartyspreader;
@@ -2119,74 +2161,760 @@ package com.dawson.chunkpartyspreader;
 // (Imports omitted to save token count)
 
 /**
- * Chunk Party Spreader
- *
- * Server-side utility mod. Core logic will be registered on the Forge event bus in later steps.
+ * The main entry point for the Chunk Party Spreader mod.
+ * Handles initial setup and configuration registration.
  */
 @Mod(ChunkPartySpreader.MODID)
+@SuppressWarnings("removal")
 public class ChunkPartySpreader {
+
+    /* ──────────────────────────────────────────────────────────────────────────────
+     *        Constants and Static Utilities
+     * ────────────────────────────────────────────────────────────────────────────*/
+
     public static final String MODID = "chunkpartyspreader";
     public static final Logger LOGGER = LogUtils.getLogger();
 
+    /* ──────────────────────────────────────────────────────────────────────────────
+     *        Constructors
+     * ────────────────────────────────────────────────────────────────────────────*/
+
+    /**
+     * Initializes the mod and registers the common configuration file.
+     */
     public ChunkPartySpreader() {
-        // Intentionally minimal for initial project setup.
+        // Register the Forge config specification.
+        ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, CPSConfig.SPEC);
     }
 }
 ```
 
-`Config.java`
+`CPSConfig.java`
 ```java
 package com.dawson.chunkpartyspreader;
 
 // (Imports omitted to save token count)
 
-// An example config class. This is not required, but it's a good idea to have one to keep your config organized.
-// Demonstrates how to use Forge's config APIs
-@Mod.EventBusSubscriber(modid = com.dawson.chunkpartyspreader.ChunkPartySpreader.MODID, bus = Mod.EventBusSubscriber.Bus.MOD)
-public class Config
-{
+/**
+ * Defines the common configuration settings for the Chunk Party Spreader.
+ * These settings are stored in 'chunkpartyspreader-common.toml'.
+ */
+public final class CPSConfig {
+
+    /* ──────────────────────────────────────────────────────────────────────────────
+     *        Configuration Specifications
+     * ────────────────────────────────────────────────────────────────────────────*/
+
     private static final ForgeConfigSpec.Builder BUILDER = new ForgeConfigSpec.Builder();
 
-    private static final ForgeConfigSpec.BooleanValue LOG_DIRT_BLOCK = BUILDER
-            .comment("Whether to log the dirt block on common setup")
-            .define("logDirtBlock", true);
+    // --- Configuration Values ---
 
-    private static final ForgeConfigSpec.IntValue MAGIC_NUMBER = BUILDER
-            .comment("A magic number")
-            .defineInRange("magicNumber", 42, 0, Integer.MAX_VALUE);
+    /**
+     * Distance between spiral points in chunks.
+     */
+    public static final ForgeConfigSpec.IntValue GRID_SPACING_CHUNKS = BUILDER
+            .comment("Distance between spiral points in chunks (25 = 400 blocks).")
+            .defineInRange("grid_spacing_chunks", 25, 1, Integer.MAX_VALUE);
 
-    public static final ForgeConfigSpec.ConfigValue<String> MAGIC_NUMBER_INTRODUCTION = BUILDER
-            .comment("What you want the introduction message to be for the magic number")
-            .define("magicNumberIntroduction", "The magic number is... ");
+    /**
+     * If true, the algorithm will skip coordinates that land in ocean biomes.
+     */
+    public static final ForgeConfigSpec.BooleanValue SKIP_OCEANS = BUILDER
+            .comment("If true, discard coordinates that land in an ocean biome.")
+            .define("skip_oceans", true);
 
-    // a list of strings that are treated as resource locations for items
-    private static final ForgeConfigSpec.ConfigValue<List<? extends String>> ITEM_STRINGS = BUILDER
-            .comment("A list of items to log on common setup.")
-            .defineListAllowEmpty("items", List.of("minecraft:iron_ingot"), Config::validateItemName);
+    /**
+     * The command executed to pre-generate chunks via the Chunk By Chunk mod.
+     */
+    public static final ForgeConfigSpec.ConfigValue<String> GENERATION_COMMAND = BUILDER
+            .comment("Command to execute for chunk pre-generation.",
+                    "Use %d placeholders for BLOCK X and BLOCK Z (Center of the chunk).",
+                    "Default uses /execute positioned to force the mod to spawn the chunk at that location.")
+            .define("generation_command", "/execute in minecraft:overworld positioned %d 0 %d run chunkbychunk:spawnChunk");
 
-    static final ForgeConfigSpec SPEC = BUILDER.build();
+    /**
+     * Horizontal offset for the center of the spiral.
+     */
+    public static final ForgeConfigSpec.IntValue CENTER_OFFSET_X = BUILDER
+            .comment("Center X offset (in chunks) for the spiral.")
+            .defineInRange("center_offset_x", 0, Integer.MIN_VALUE, Integer.MAX_VALUE);
 
-    public static boolean logDirtBlock;
-    public static int magicNumber;
-    public static String magicNumberIntroduction;
-    public static Set<Item> items;
+    /**
+     * Vertical (Z) offset for the center of the spiral.
+     */
+    public static final ForgeConfigSpec.IntValue CENTER_OFFSET_Z = BUILDER
+            .comment("Center Z offset (in chunks) for the spiral.")
+            .defineInRange("center_offset_z", 0, Integer.MIN_VALUE, Integer.MAX_VALUE);
 
-    private static boolean validateItemName(final Object obj)
-    {
-        return obj instanceof final String itemName && ForgeRegistries.ITEMS.containsKey(new ResourceLocation(itemName));
+    /**
+     * The built configuration specification.
+     * MUST be defined AFTER all the configuration values above, or the spec will be empty.
+     */
+    public static final ForgeConfigSpec SPEC = BUILDER.build();
+
+    /* ──────────────────────────────────────────────────────────────────────────────
+     *        Constructors
+     * ────────────────────────────────────────────────────────────────────────────*/
+
+    private CPSConfig() {}
+}
+```
+
+`SpiralCalculator.java`
+```java
+package com.dawson.chunkpartyspreader;
+
+// (Imports omitted to save token count)
+
+/**
+ * Utility for calculating geographic offsets based on a square spiral pattern (Ulam variation).
+ */
+public final class SpiralCalculator {
+
+    /* ──────────────────────────────────────────────────────────────────────────────
+     *        Constants and Static Utilities
+     * ────────────────────────────────────────────────────────────────────────────*/
+
+    /**
+     * A simple 2D integer coordinate container.
+     */
+    public record IntPoint(int x, int z) {}
+
+    private SpiralCalculator() {}
+
+    /**
+     * Calculates the unit grid coordinate for a given index.
+     * Index 0 returns (0,0), then spirals outwards: (1,0), (1,1), (0,1), (-1,1)...
+     *
+     * @param index The spiral index to calculate.
+     * @return An IntPoint representing the unit coordinate.
+     */
+    public static IntPoint unitForIndex(int index) {
+        // --- Early Exit ---
+        if (index <= 0) {
+            return new IntPoint(0, 0);
+        }
+
+        // --- Ring Calculation ---
+        long n = index;
+        long r = (long) Math.ceil((Math.sqrt(n + 1d) - 1d) / 2d); // current ring radius
+        long side = 2L * r;
+        long max = (2L * r + 1);
+        max = max * max - 1; // max index on this ring at (r, -r)
+
+        // distance backwards from the max index point on the ring
+        long d = max - n;
+
+        // --- Perimeter Mapping ---
+        long x, z;
+        if (d <= side) {                 // Bottom edge: (r,-r) -> (-r,-r)
+            x = r - d;
+            z = -r;
+        } else if (d <= 2 * side) {      // Left edge: (-r,-r) -> (-r,r)
+            x = -r;
+            z = -r + (d - side);
+        } else if (d <= 3 * side) {      // Top edge: (-r,r) -> (r,r)
+            x = -r + (d - 2 * side);
+            z = r;
+        } else {                         // Right edge: (r,r) -> (r,-r+1)
+            x = r;
+            z = r - (d - 3 * side);
+        }
+
+        return new IntPoint((int) x, (int) z);
+    }
+
+    /**
+     * Scales a unit spiral coordinate into a Minecraft ChunkPos.
+     *
+     * @param index         The spiral index.
+     * @param spacingChunks Distance between points in chunks.
+     * @param centerOffsetX Global X offset for the spiral center.
+     * @param centerOffsetZ Global Z offset for the spiral center.
+     * @return A ChunkPos representing the scaled target.
+     */
+    public static ChunkPos chunkForIndex(int index, int spacingChunks, int centerOffsetX, int centerOffsetZ) {
+        IntPoint p = unitForIndex(index);
+
+        long cx = (long) p.x() * (long) spacingChunks + (long) centerOffsetX;
+        long cz = (long) p.z() * (long) spacingChunks + (long) centerOffsetZ;
+
+        return new ChunkPos((int) cx, (int) cz);
+    }
+}
+```
+
+`SpiralCalculatorTestMain.java`
+```java
+package com.dawson.chunkpartyspreader;
+
+/**
+ * Standalone test utility to verify the SpiralCalculator logic without launching Minecraft.
+ */
+public final class SpiralCalculatorTestMain {
+
+    /* ──────────────────────────────────────────────────────────────────────────────
+     *        Constructors
+     * ────────────────────────────────────────────────────────────────────────────*/
+
+    private SpiralCalculatorTestMain() {}
+
+    /* ──────────────────────────────────────────────────────────────────────────────
+     *        Public Methods
+     * ────────────────────────────────────────────────────────────────────────────*/
+
+    /**
+     * Iterates through the first 25 indices and prints the calculated unit coordinates to the console.
+     */
+    public static void main(String[] args) {
+        // --- Algorithm Verification ---
+        for (int i = 0; i < 25; i++) {
+            var p = SpiralCalculator.unitForIndex(i);
+            System.out.printf("%d -> (%d,%d)%n", i, p.x(), p.z());
+        }
+    }
+}
+```
+
+`SpreaderEvents.java`
+```java
+package com.dawson.chunkpartyspreader;
+
+// (Imports omitted to save token count)
+
+@Mod.EventBusSubscriber(modid = ChunkPartySpreader.MODID, bus = Mod.EventBusSubscriber.Bus.FORGE)
+public final class SpreaderEvents {
+
+    // --- State Management for Stasis ---
+    // Tracks players floating in the sky waiting for their chunk to generate.
+    private static final Map<UUID, PendingTeleport> PENDING_TARGETS = new HashMap<>();
+    private static final String TAG_WAITING = "cps_waiting_for_chunk";
+    private static final int TIMEOUT_TICKS = 600; // 30 seconds max wait
+
+    // StabilityCounter to track how many checks the chunk has passed
+    private static class PendingTeleport {
+        final ChunkPos targetChunk;
+        final long startTick;
+        int stabilityCounter = 0;
+
+        PendingTeleport(ChunkPos targetChunk, long startTick) {
+            this.targetChunk = targetChunk;
+            this.startTick = startTick;
+        }
+    }
+
+    /* ──────────────────────────────────────────────────────────────────────────────
+     *        Event Handlers
+     * ────────────────────────────────────────────────────────────────────────────*/
+
+    // --- 1. Server Starting: Disable CBC Auto-Gen & Align Spawn ---
+    @SubscribeEvent
+    public static void onServerStarting(ServerStartingEvent event) {
+        MinecraftServer server = event.getServer();
+        ServerLevel level = server.overworld(); // Safe to access here
+
+        // A. Disable ChunkByChunk's startup generation
+        // This ensures the world stays empty until we explicitly request a chunk.
+        if (ModList.get().isLoaded("chunkbychunk")) {
+            ChunkPartySpreader.LOGGER.info("[Chunk Party Spreader] - ServerStarting: Disabling CBC initialChunks...");
+            ChunkByChunkCompat.disableCbcStartupInitialChunks(server);
+        }
+
+        // B. Align World Spawn to Spiral Index 0
+        int offX = CPSConfig.CENTER_OFFSET_X.get();
+        int offZ = CPSConfig.CENTER_OFFSET_Z.get();
+
+        int blockX = (offX * 16) + 8;
+        int blockZ = (offZ * 16) + 8;
+        BlockPos targetSpawn = new BlockPos(blockX, 64, blockZ);
+
+        ChunkPartySpreader.LOGGER.info("[Chunk Party Spreader] - Aligning Default World Spawn to Spiral Center: {}", targetSpawn);
+        level.setDefaultSpawnPos(targetSpawn, 0.0f);
+    }
+
+    // --- 2. First-Join Logic  ---
+    @SubscribeEvent(priority = EventPriority.HIGH)
+    public static void onPlayerLogin(PlayerEvent.PlayerLoggedInEvent event) {
+        if (!(event.getEntity() instanceof ServerPlayer player) || player.level().isClientSide) {
+            return;
+        }
+
+        ChunkPartySpreader.LOGGER.info("[Chunk Party Spreader] - Player logged in: {}", player.getName().getString());
+
+        MinecraftServer server = player.getServer();
+        if (server == null) return;
+
+        ServerLevel level = server.overworld();
+        UUID uuid = player.getUUID();
+        SpreaderWorldData data = SpreaderWorldData.get(level);
+
+        // A. Existing Assignment Check
+        BlockPos existingAssignment = data.getAssignment(uuid);
+        if (existingAssignment != null) {
+            ChunkPartySpreader.LOGGER.info("[Chunk Party Spreader] - Player already has assignment at: {}", existingAssignment);
+            if (player.getTags().contains(TAG_WAITING)) {
+                ChunkPartySpreader.LOGGER.info("[Chunk Party Spreader] - Player has waiting tag. Resuming stasis polling...");
+                ChunkPos cPos = new ChunkPos(existingAssignment);
+                PENDING_TARGETS.put(uuid, new PendingTeleport(cPos, server.getTickCount()));
+                player.setNoGravity(true);
+                player.teleportTo(level, existingAssignment.getX() + 0.5, 320, existingAssignment.getZ() + 0.5, player.getYRot(), player.getXRot());
+                level.getChunkSource().addRegionTicket(TicketType.PLAYER, cPos, 3, cPos);
+            }
+            return;
+        }
+
+        ChunkPartySpreader.LOGGER.info("[Chunk Party Spreader] - No assignment found. Beginning spiral calculation...");
+
+        // B. Spiral Calculation
+        int spacing = CPSConfig.GRID_SPACING_CHUNKS.get();
+        int offX = CPSConfig.CENTER_OFFSET_X.get();
+        int offZ = CPSConfig.CENTER_OFFSET_Z.get();
+        boolean skipOceans = CPSConfig.SKIP_OCEANS.get();
+
+        int idx = data.getCurrentSpiralIndex();
+        ChunkPos chosenChunk = null;
+
+        for (int attempts = 0; attempts < 10000; attempts++) {
+            ChunkPos candidate = SpiralCalculator.chunkForIndex(idx, spacing, offX, offZ);
+
+            int bx = candidate.getMinBlockX() + 8;
+            int bz = candidate.getMinBlockZ() + 8;
+            BlockPos biomePos = new BlockPos(bx, level.getSeaLevel(), bz);
+
+            if (skipOceans && level.getBiome(biomePos).is(BiomeTags.IS_OCEAN)) {
+                idx++;
+                data.setCurrentSpiralIndex(idx);
+                continue;
+            }
+
+            chosenChunk = candidate;
+            ChunkPartySpreader.LOGGER.info("[Chunk Party Spreader] - Found valid chunk at index {}: {}", idx, chosenChunk);
+            break;
+        }
+
+        if (chosenChunk == null) {
+            ChunkPartySpreader.LOGGER.error("[Chunk Party Spreader] - Failed to find valid chunk after 10000 attempts. Using fallback.");
+            chosenChunk = SpiralCalculator.chunkForIndex(idx, spacing, offX, offZ);
+        }
+
+        // C. Reserve Index & Save Assignment
+        data.setCurrentSpiralIndex(idx + 1);
+
+        int blockX = chosenChunk.getMinBlockX() + 8;
+        int blockZ = chosenChunk.getMinBlockZ() + 8;
+        BlockPos tempPos = new BlockPos(blockX, 320, blockZ);
+        data.putAssignment(uuid, tempPos);
+
+        // D. Force Chunk Loading
+        ChunkPartySpreader.LOGGER.info("[Chunk Party Spreader] - Adding PLAYER ticket to force load chunk {}", chosenChunk);
+        level.getChunkSource().addRegionTicket(TicketType.PLAYER, chosenChunk, 3, chosenChunk);
+
+        // E. Trigger Generation (Direct API Call)
+        if (ModList.get().isLoaded("chunkbychunk")) {
+            ChunkPartySpreader.LOGGER.info("[Chunk Party Spreader] - Requesting generation via ChunkByChunk API for {}", tempPos);
+            try {
+                boolean success = ChunkByChunkCompat.generateChunk(level, tempPos);
+                ChunkPartySpreader.LOGGER.info("[Chunk Party Spreader] - API Request Accepted: {}", success);
+            } catch (Exception e) {
+                ChunkPartySpreader.LOGGER.error("[Chunk Party Spreader] - API execution failed", e);
+            }
+        }
+
+        // F. Enable Stasis
+        ChunkPartySpreader.LOGGER.info("[Chunk Party Spreader] - Putting player in stasis at Y=320 while chunk generates...");
+        player.addTag(TAG_WAITING);
+        player.setNoGravity(true);
+        player.teleportTo(level, tempPos.getX() + 0.5, 320, tempPos.getZ() + 0.5, player.getYRot(), player.getXRot());
+
+        PENDING_TARGETS.put(uuid, new PendingTeleport(chosenChunk, server.getTickCount()));
+    }
+
+    // --- 3. Stasis Polling (Server Tick) ---
+    @SubscribeEvent
+    public static void onServerTick(TickEvent.ServerTickEvent event) {
+        if (event.phase != TickEvent.Phase.END || PENDING_TARGETS.isEmpty()) return;
+
+        MinecraftServer server = event.getServer();
+        if (server == null) return;
+
+        Iterator<Map.Entry<UUID, PendingTeleport>> it = PENDING_TARGETS.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry<UUID, PendingTeleport> entry = it.next();
+            UUID uuid = entry.getKey();
+            PendingTeleport pending = entry.getValue();
+
+            ServerPlayer player = server.getPlayerList().getPlayer(uuid);
+            if (player == null) {
+                it.remove();
+                continue;
+            }
+
+            // Poll every 20 ticks
+            if (player.getServer().getTickCount() % 20 != 0) continue;
+
+            ServerLevel level = player.serverLevel();
+            int centerBlockX = pending.targetChunk.getMinBlockX() + 8;
+            int centerBlockZ = pending.targetChunk.getMinBlockZ() + 8;
+
+            int groundY = getTrueSurfaceY(level, centerBlockX, centerBlockZ);
+            int minBuild = level.getMinBuildHeight();
+
+            boolean isGroundDetected = groundY > minBuild + 1;
+            boolean isTimeout = (player.getServer().getTickCount() - pending.startTick) > TIMEOUT_TICKS;
+
+            if (isGroundDetected) {
+                pending.stabilityCounter++;
+                ChunkPartySpreader.LOGGER.info("[Chunk Party Spreader] - Ground detected at Y={}. Stability {}/3", groundY, pending.stabilityCounter);
+            } else {
+                pending.stabilityCounter = 0;
+            }
+
+            if (pending.stabilityCounter >= 3) {
+                ChunkPartySpreader.LOGGER.info("[Chunk Party Spreader] - Chunk stable! Releasing {}.", player.getName().getString());
+
+                BlockPos finalHome = new BlockPos(centerBlockX, groundY + 1, centerBlockZ);
+                SpreaderWorldData.get(level).putAssignment(uuid, finalHome);
+
+                level.getChunkSource().removeRegionTicket(TicketType.PLAYER, pending.targetChunk, 3, pending.targetChunk);
+                player.removeTag(TAG_WAITING);
+                player.setNoGravity(false);
+                player.teleportTo(level, finalHome.getX() + 0.5, finalHome.getY(), finalHome.getZ() + 0.5, player.getYRot(), player.getXRot());
+                player.setRespawnPosition(level.dimension(), finalHome, player.getYRot(), true, false);
+
+                it.remove();
+            } else if (isTimeout) {
+                ChunkPartySpreader.LOGGER.warn("[Chunk Party Spreader] - Generation timeout (60s) for {}. Releasing to gravity (fallback).", player.getName().getString());
+                level.getChunkSource().removeRegionTicket(TicketType.PLAYER, pending.targetChunk, 3, pending.targetChunk);
+                player.removeTag(TAG_WAITING);
+                player.setNoGravity(false);
+                it.remove();
+            }
+        }
+    }
+
+    // --- 4. Respawn Fallback Logic ---
+    @SubscribeEvent
+    public static void onPlayerRespawn(PlayerEvent.PlayerRespawnEvent event) {
+        if (!(event.getEntity() instanceof ServerPlayer player) || player.level().isClientSide || event.isEndConquered()) {
+            return;
+        }
+
+        ChunkPartySpreader.LOGGER.info("[Chunk Party Spreader] - Player respawning: {}. Checking for spawn point override...", player.getName().getString());
+
+        MinecraftServer server = player.getServer();
+        if (server == null) return;
+
+        if (hasValidSpawnBlockOrForced(player, server)) {
+            ChunkPartySpreader.LOGGER.info("[Chunk Party Spreader] - Player has valid/forced spawn. No intervention.");
+            return;
+        }
+
+        ServerLevel overworld = server.overworld();
+        SpreaderWorldData data = SpreaderWorldData.get(overworld);
+        BlockPos home = data.getAssignment(player.getUUID());
+
+        if (home != null) {
+            ChunkPartySpreader.LOGGER.info("[Chunk Party Spreader] - No valid bed found. Teleporting to Spiral Home: {}", home);
+            player.teleportTo(overworld, home.getX() + 0.5, home.getY(), home.getZ() + 0.5, player.getYRot(), player.getXRot());
+            player.setRespawnPosition(overworld.dimension(), home, player.getYRot(), true, false);
+        } else {
+            ChunkPartySpreader.LOGGER.info("[Chunk Party Spreader] - No Spiral Assignment found for respawning player.");
+        }
+    }
+
+    /* ──────────────────────────────────────────────────────────────────────────────
+     *        Private Helpers
+     * ────────────────────────────────────────────────────────────────────────────*/
+
+    /**
+     * Scans from the top of the world down to find the first non-air, non-leaf block.
+     * This bypasses potentially stale Heightmaps in newly generated chunks.
+     */
+    private static int getTrueSurfaceY(ServerLevel level, int x, int z) {
+        int maxY = level.getMaxBuildHeight() - 1;
+        int minY = level.getMinBuildHeight();
+        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos(x, maxY, z);
+
+        for (int y = maxY; y > minY; y--) {
+            pos.setY(y);
+            BlockState state = level.getBlockState(pos);
+            if (!state.isAir() && !state.is(BlockTags.LEAVES)) {
+                return y;
+            }
+        }
+        return minY;
+    }
+
+    private static boolean hasValidSpawnBlockOrForced(ServerPlayer player, MinecraftServer server) {
+        if (player.isRespawnForced()) return true;
+
+        BlockPos respawnPos = player.getRespawnPosition();
+        if (respawnPos == null) return false;
+
+        ServerLevel respawnLevel = server.getLevel(player.getRespawnDimension());
+        if (respawnLevel == null) return false;
+
+        BlockState state = respawnLevel.getBlockState(respawnPos);
+
+        if (state.is(BlockTags.BEDS)) return true;
+
+        if (state.is(Blocks.RESPAWN_ANCHOR)) {
+            Integer charge = state.getValue(RespawnAnchorBlock.CHARGE);
+            return charge != null && charge > 0;
+        }
+
+        return false;
+    }
+}
+```
+
+`SpreaderSpawnFixes.java`
+```java
+package com.dawson.chunkpartyspreader;
+
+// (Imports omitted to save token count)
+
+@Mod.EventBusSubscriber(modid = ChunkPartySpreader.MODID)
+public final class SpreaderSpawnFixes {
+
+    private SpreaderSpawnFixes() {}
+
+    // Guard to prevent infinite recursion when we re-fire the set spawn event
+    private static final ThreadLocal<Boolean> IS_ADJUSTING_SPAWN = ThreadLocal.withInitial(() -> false);
+
+    /* ──────────────────────────────────────────────────────────────────────────────
+     *        Event Handlers
+     * ────────────────────────────────────────────────────────────────────────────*/
+
+    // --- 1. Fix Bed Respawn (Keep spawn even if bed broken) ---
+    @SubscribeEvent
+    public static void onSetSpawn(PlayerSetSpawnEvent event) {
+        // If we are currently adjusting, ignore to prevent loop
+        if (IS_ADJUSTING_SPAWN.get()) return;
+
+        // We only care about ensuring the spawn is FORCED (survives bed breaking)
+        // If it's already forced, or if the new spawn is null (clearing spawn), we do nothing.
+        if (event.isForced() || event.getNewSpawn() == null) return;
+
+        // Check if the target is a Bed
+        Level level = event.getEntity().level();
+        if (level.isClientSide) return;
+
+        BlockPos newPos = event.getNewSpawn();
+        // Just blind-force it. If the player is setting a spawn, we want it to stick.
+        // This covers Beds and Anchors.
+
+        ChunkPartySpreader.LOGGER.info("[Chunk Party Spreader] - Intercepting Spawn Set at {}. Forcing persistence.", newPos);
+
+        // We must cancel the event to stop the original "non-forced" set,
+        // and apply our own "forced" set.
+        event.setCanceled(true);
+
+        IS_ADJUSTING_SPAWN.set(true);
+        try {
+            if (event.getEntity() instanceof ServerPlayer sp) {
+                // Call the method again, but with forced = true
+                sp.setRespawnPosition(event.getSpawnLevel(), newPos, 0.0f, true, true);
+            }
+        } finally {
+            IS_ADJUSTING_SPAWN.set(false);
+        }
+    }
+
+    // --- 2. Void Safety Platform Checks ---
+
+    @SubscribeEvent
+    public static void onPlayerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
+        if (event.getEntity() instanceof ServerPlayer player) {
+            ensureNotVoid(player);
+        }
     }
 
     @SubscribeEvent
-    static void onLoad(final ModConfigEvent event)
-    {
-        logDirtBlock = LOG_DIRT_BLOCK.get();
-        magicNumber = MAGIC_NUMBER.get();
-        magicNumberIntroduction = MAGIC_NUMBER_INTRODUCTION.get();
+    public static void onPlayerRespawn(PlayerEvent.PlayerRespawnEvent event) {
+        if (event.getEntity() instanceof ServerPlayer player) {
+            ensureNotVoid(player);
+        }
+    }
 
-        // convert the list of strings into a set of items
-        items = ITEM_STRINGS.get().stream()
-                .map(itemName -> ForgeRegistries.ITEMS.getValue(new ResourceLocation(itemName)))
-                .collect(Collectors.toSet());
+    /* ──────────────────────────────────────────────────────────────────────────────
+     *        Private Helpers
+     * ────────────────────────────────────────────────────────────────────────────*/
+
+    private static void ensureNotVoid(ServerPlayer player) {
+        if (!ModList.get().isLoaded("chunkbychunk")) return;
+
+        // Check for Stasis Tag
+        // If the player is currently waiting for the chunk to generate via SpreaderEvents,
+        // we must NOT interfere. SpreaderEvents has them floating safely at Y=320 with NoGravity.
+        if (player.getTags().contains("cps_waiting_for_chunk")) {
+            ChunkPartySpreader.LOGGER.info("[Chunk Party Spreader] - Skipping void check for {} (In Stasis).", player.getName().getString());
+            return;
+        }
+
+        ServerLevel level = player.serverLevel();
+        BlockPos pos = player.blockPosition();
+
+        level.getChunk(pos);
+        int groundY = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, pos.getX(), pos.getZ());
+        int minY = level.getMinBuildHeight();
+
+        // If ground is effectively at the bottom of the world
+        if (groundY > minY + 1) {
+            return;
+        }
+
+        ChunkPartySpreader.LOGGER.warn("[Chunk Party Spreader] - Void detected under {}. Emergency platform activated at {}", player.getName().getString(), pos);
+
+        // --- Platform Construction ---
+        int floorY = Math.max(level.getSeaLevel() - 1, minY + 1);
+        BlockPos floorCenter = new BlockPos(pos.getX(), floorY, pos.getZ());
+
+        if (level.getBlockState(floorCenter).isAir()) {
+            for (int dx = -1; dx <= 1; dx++) {
+                for (int dz = -1; dz <= 1; dz++) {
+                    level.setBlockAndUpdate(floorCenter.offset(dx, 0, dz), Blocks.STONE.defaultBlockState());
+                }
+            }
+        }
+
+        // --- Emergency Teleport ---
+        player.teleportTo(level,
+                floorCenter.getX() + 0.5,
+                floorCenter.getY() + 1.0,
+                floorCenter.getZ() + 0.5,
+                player.getYRot(),
+                player.getXRot()
+        );
+        player.setDeltaMovement(Vec3.ZERO);
+        player.fallDistance = 0.0f;
+    }
+}
+```
+
+`SpreaderWorldData.java`
+```java
+package com.dawson.chunkpartyspreader;
+
+// (Imports omitted to save token count)
+
+/**
+ * Handles persistent storage for the player spiral index and home chunk assignments.
+ * This data is attached to the Overworld's data storage.
+ */
+public class SpreaderWorldData extends SavedData {
+
+    /* ──────────────────────────────────────────────────────────────────────────────
+     *        Constants and Static Utilities
+     * ────────────────────────────────────────────────────────────────────────────*/
+
+    private static final String DATA_NAME = "chunkpartyspreader";
+
+    /**
+     * Factory method to create a new instance from NBT.
+     */
+    public static SpreaderWorldData load(CompoundTag tag) {
+        SpreaderWorldData data = new SpreaderWorldData();
+
+        // --- 1. Load Spiral Index ---
+        data.currentSpiralIndex = tag.getInt("SpiralIndex");
+
+        // --- 2. Load Player Assignments ---
+        ListTag list = tag.getList("Assignments", Tag.TAG_COMPOUND);
+        for (int i = 0; i < list.size(); i++) {
+            CompoundTag entry = list.getCompound(i);
+            UUID uuid = UUID.fromString(entry.getString("UUID"));
+            int x = entry.getInt("X");
+            int y = entry.getInt("Y");
+            int z = entry.getInt("Z");
+            data.playerAssignments.put(uuid, new BlockPos(x, y, z));
+        }
+
+        return data;
+    }
+
+    /**
+     * Retrieves the singleton instance of the spreader data for the server.
+     * Always retrieves from the Overworld regardless of the provided level's dimension.
+     */
+    public static SpreaderWorldData get(ServerLevel anyLevel) {
+        ServerLevel overworld = anyLevel.getServer().overworld();
+        return overworld.getDataStorage().computeIfAbsent(
+                SpreaderWorldData::load,
+                SpreaderWorldData::new,
+                DATA_NAME
+        );
+    }
+
+    /* ──────────────────────────────────────────────────────────────────────────────
+     *        Fields
+     * ────────────────────────────────────────────────────────────────────────────*/
+
+    private int currentSpiralIndex = 0;
+    private final Map<UUID, BlockPos> playerAssignments = new HashMap<>();
+
+    /* ──────────────────────────────────────────────────────────────────────────────
+     *        Constructors
+     * ────────────────────────────────────────────────────────────────────────────*/
+
+    public SpreaderWorldData() {}
+
+    /* ──────────────────────────────────────────────────────────────────────────────
+     *        Public Methods
+     * ────────────────────────────────────────────────────────────────────────────*/
+
+    @Override
+    public CompoundTag save(CompoundTag tag) {
+        // --- 1. Save Spiral Index ---
+        tag.putInt("SpiralIndex", currentSpiralIndex);
+
+        // --- 2. Save Player Assignments ---
+        ListTag list = new ListTag();
+        for (Map.Entry<UUID, BlockPos> e : playerAssignments.entrySet()) {
+            CompoundTag entry = new CompoundTag();
+            entry.putString("UUID", e.getKey().toString());
+
+            BlockPos pos = e.getValue();
+            entry.putInt("X", pos.getX());
+            entry.putInt("Y", pos.getY());
+            entry.putInt("Z", pos.getZ());
+
+            list.add(entry);
+        }
+        tag.put("Assignments", list);
+
+        return tag;
+    }
+
+    /**
+     * @return The current global counter for the spiral algorithm.
+     */
+    public int getCurrentSpiralIndex() {
+        return currentSpiralIndex;
+    }
+
+    /**
+     * Updates the spiral index and marks the data as dirty for saving.
+     */
+    public void setCurrentSpiralIndex(int idx) {
+        this.currentSpiralIndex = idx;
+        this.setDirty();
+    }
+
+    /**
+     * Retrieves the stored home position for a player.
+     * @return BlockPos or null if no assignment exists.
+     */
+    public BlockPos getAssignment(UUID uuid) {
+        return playerAssignments.get(uuid);
+    }
+
+    /**
+     * Maps a player UUID to a BlockPos and marks the data as dirty.
+     */
+    public void putAssignment(UUID uuid, BlockPos pos) {
+        playerAssignments.put(uuid, pos);
+        this.setDirty();
     }
 }
 ```
@@ -2207,88 +2935,40 @@ public class Config
 ### 📂 `src/main/resources/META-INF/`
 `mods.toml`
 ```toml
-# This is an example mods.toml file. It contains the data relating to the loading mods.
-# There are several mandatory fields (#mandatory), and many more that are optional (#optional).
-# The overall format is standard TOML format, v0.5.0.
-# Note that there are a couple of TOML lists in this file.
-# Find more information on toml format here:  https://github.com/toml-lang/toml
-# The name of the mod loader type to load - for regular FML @Mod mods it should be javafml
-modLoader="javafml" #mandatory
-# A version range to match for said mod loader - for regular FML @Mod it will be the forge version
-loaderVersion="${loader_version_range}" #mandatory This is typically bumped every Minecraft version by Forge. See our download page for lists of versions.
-# The license for you mod. This is mandatory metadata and allows for easier comprehension of your redistributive properties.
-# Review your options at https://choosealicense.com/. All rights reserved is the default copyright stance, and is thus the default here.
+modLoader="javafml"
+loaderVersion="${loader_version_range}"
 license="${mod_license}"
-# A URL to refer people to when problems occur with this mod
-#issueTrackerURL="https://change.me.to.your.issue.tracker.example.invalid/" #optional
-# If your mod is purely client-side and has no multiplayer functionality (be it dedicated servers or Open to LAN),
-# set this to true, and Forge will set the correct displayTest for you and skip loading your mod on dedicated servers.
-#clientSideOnly=true #optional - defaults to false if absent
-# A list of mods - how many allowed here is determined by the individual mod loader
-[[mods]] #mandatory
-# The modid of the mod
-modId="${mod_id}" #mandatory
-# The version number of the mod
-version="${mod_version}" #mandatory
-# A display name for the mod
-displayName="${mod_name}" #mandatory
-# A URL to query for updates for this mod. See the JSON update specification https://docs.minecraftforge.net/en/latest/misc/updatechecker/
-#updateJSONURL="https://change.me.example.invalid/updates.json" #optional
-# A URL for the "homepage" for this mod, displayed in the mod UI
-#displayURL="https://change.me.to.your.mods.homepage.example.invalid/" #optional
-# A file name (in the root of the mod JAR) containing a logo for display
-#logoFile="chunkpartyspreader.png" #optional
-# A text field displayed in the mod UI
-#credits="" #optional
-# A text field displayed in the mod UI
-authors="${mod_authors}" #optional
-# Display Test controls the display for your mod in the server connection screen
-# MATCH_VERSION means that your mod will cause a red X if the versions on client and server differ. This is the default behaviour and should be what you choose if you have server and client elements to your mod.
-# IGNORE_SERVER_VERSION means that your mod will not cause a red X if it's present on the server but not on the client. This is what you should use if you're a server only mod.
-# IGNORE_ALL_VERSION means that your mod will not cause a red X if it's present on the client or the server. This is a special case and should only be used if your mod has no server component.
-# NONE means that no display test is set on your mod. You need to do this yourself, see IExtensionPoint.DisplayTest for more information. You can define any scheme you wish with this value.
-# IMPORTANT NOTE: this is NOT an instruction as to which environments (CLIENT or DEDICATED SERVER) your mod loads on. Your mod should load (and maybe do nothing!) whereever it finds itself.
 displayTest="IGNORE_SERVER_VERSION"
 
-# The description text for the mod (multi line!) (#mandatory)
+[[mods]]
+modId="${mod_id}"
+version="${mod_version}"
+displayName="${mod_name}"
+authors="${mod_authors}"
 description='''${mod_description}'''
-# A dependency - use the . to indicate dependency for a specific modid. Dependencies are optional.
-[[dependencies.${mod_id}]] #optional
-    # the modid of the dependency
-    modId="forge" #mandatory
-    # Does this dependency have to exist - if not, ordering below must be specified
-    mandatory=true #mandatory
-    # The version range of the dependency
-    versionRange="${forge_version_range}" #mandatory
-    # An ordering relationship for the dependency - BEFORE or AFTER required if the dependency is not mandatory
-    # BEFORE - This mod is loaded BEFORE the dependency
-    # AFTER - This mod is loaded AFTER the dependency
-    ordering="NONE"
-    # Side this dependency is applied on - BOTH, CLIENT, or SERVER
-    side="BOTH"
-# Here's another dependency
-[[dependencies.${mod_id}]]
-    modId="minecraft"
-    mandatory=true
-    # This version range declares a minimum of the current minecraft version up to but not including the next major version
-    versionRange="${minecraft_version_range}"
-    ordering="NONE"
-    side="BOTH"
 
-# Features are specific properties of the game environment, that you may want to declare you require. This example declares
-# that your mod requires GL version 3.2 or higher. Other features will be added. They are side aware so declaring this won't
-# stop your mod loading on the server for example.
-#[features.${mod_id}]
-#openGLVersion="[3.2,)"
+# --- Dependencies ---
 
-[[dependencies.${mod_id}]]
-    modId="chunkbychunk"
-    mandatory=false
-    versionRange="[0,)"
-    ordering="AFTER"
-    side="SERVER"
+[[dependencies."${mod_id}"]]
+modId="forge"
+mandatory=true
+versionRange="${forge_version_range}"
+ordering="NONE"
+side="BOTH"
 
+[[dependencies."${mod_id}"]]
+modId="minecraft"
+mandatory=true
+versionRange="${minecraft_version_range}"
+ordering="NONE"
+side="BOTH"
 
+[[dependencies."${mod_id}"]]
+modId="chunkbychunk"
+mandatory=false
+versionRange="[0,)"
+ordering="AFTER"
+side="SERVER"
 ```
 
 End CPS Provided Code

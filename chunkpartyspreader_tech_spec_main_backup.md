@@ -152,6 +152,7 @@ Before assigning a spot:
 ### 📂 `Repository Root/`
 `build.gradle`
 ```groovy
+// --- 1. Plugins and Toolchain ---
 plugins {
     id 'eclipse'
     id 'idea'
@@ -166,90 +167,68 @@ base {
     archivesName = mod_id
 }
 
-// Mojang ships Java 17 to end users in 1.18+, so your mod should target Java 17.
 java.toolchain.languageVersion = JavaLanguageVersion.of(17)
 
+// --- 2. Minecraft Configuration ---
 minecraft {
     mappings channel: mapping_channel, version: mapping_version
-
-    // This makes IntelliJ/Gradle copy resources into the run dir, so changes apply without rebuilding the jar.
     copyIdeResources = true
 
     runs {
-        client {
+        configureEach {
             workingDirectory project.file('run')
 
             property 'forge.logging.markers', 'REGISTRIES'
             property 'forge.logging.console.level', 'debug'
 
+            property 'mixin.env.remapRefMap', 'true'
+            property 'mixin.env.refMapRemappingEnv', 'searge'
+            property 'mixin.env.refMapRemappingFile', file("$buildDir/createSrgToMcp/output.srg").absolutePath
+        }
+
+        client {
             mods {
-                "${mod_id}" {
-                    source sourceSets.main
-                }
+                "${mod_id}" { source sourceSets.main }
             }
         }
 
         server {
-            workingDirectory project.file('run')
-
-            property 'forge.logging.markers', 'REGISTRIES'
-            property 'forge.logging.console.level', 'debug'
-
             args '--nogui'
-
             mods {
-                "${mod_id}" {
-                    source sourceSets.main
-                }
+                "${mod_id}" { source sourceSets.main }
             }
         }
 
-        // Optional: server with GameTests enabled
         gameTestServer {
-            workingDirectory project.file('run')
-
-            property 'forge.logging.markers', 'REGISTRIES'
-            property 'forge.logging.console.level', 'debug'
-
             args '--nogui'
-
             mods {
-                "${mod_id}" {
-                    source sourceSets.main
-                }
+                "${mod_id}" { source sourceSets.main }
             }
         }
 
-        // Optional: generates data (loot tables, tags, etc.)
         data {
-            workingDirectory project.file('run')
-
-            property 'forge.logging.markers', 'REGISTRIES'
-            property 'forge.logging.console.level', 'debug'
-
-            args '--mod', mod_id, '--all',
-                    '--output', file('src/generated/resources/'),
-                    '--existing', file('src/main/resources/')
-
+            args '--mod', mod_id, '--all', '--output', file('src/generated/resources/'), '--existing', file('src/main/resources/')
             mods {
-                "${mod_id}" {
-                    source sourceSets.main
-                }
+                "${mod_id}" { source sourceSets.main }
             }
         }
     }
 }
 
+// --- 3. Dependencies and Repositories ---
 sourceSets.main.resources { srcDir 'src/generated/resources' }
 
 repositories {
     mavenCentral()
+    maven { url = "https://cursemaven.com" }
 }
 
 dependencies {
     minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+    runtimeOnly fg.deobf("curse.maven:chunk-by-chunk-565866:5168269")
 }
 
+// --- 4. Task Configurations ---
 tasks.named('processResources', ProcessResources).configure {
     def replaceProperties = [
             minecraft_version      : minecraft_version,
@@ -292,7 +271,6 @@ jar {
 
 jar.finalizedBy('reobfJar')
 
-// Publishing is optional; leaving it configured makes it easy to publish to a local repo folder.
 publishing {
     publications {
         register('mavenJava', MavenPublication) {
@@ -305,73 +283,563 @@ publishing {
         }
     }
 }
-
 ```
 
 `gradle.properties`
 ```properties
-# Sets default memory used for gradle commands. Can be overridden by user or command line properties.
-# This is required to provide enough memory for the Minecraft decompilation process.
+# --- 1. Gradle Environment Settings ---
+# Allocation for the Minecraft decompilation process.
 org.gradle.jvmargs=-Xmx3G
 org.gradle.daemon=false
 
-
-## Environment Properties
-
-# The Minecraft version must agree with the Forge version to get a valid artifact
+# --- 2. Toolchain and Versioning ---
 minecraft_version=1.20.1
-# The Minecraft version range can use any release version of Minecraft as bounds.
-# Snapshots, pre-releases, and release candidates are not guaranteed to sort properly
-# as they do not follow standard versioning conventions.
 minecraft_version_range=[1.20.1,1.21)
-# The Forge version must agree with the Minecraft version to get a valid artifact
 forge_version=47.4.13
-# The Forge version range can use any version of Forge as bounds or match the loader version range
 forge_version_range=[47,)
-# The loader version range can only use the major version of Forge/FML as bounds
 loader_version_range=[47,)
-# The mapping channel to use for mappings.
-# The default set of supported mapping channels are ["official", "snapshot", "snapshot_nodoc", "stable", "stable_nodoc"].
-# Additional mapping channels can be registered through the "channelProviders" extension in a Gradle plugin.
-#
-# | Channel   | Version              |                                                                                |
-# |-----------|----------------------|--------------------------------------------------------------------------------|
-# | official  | MCVersion            | Official field/method names from Mojang mapping files                          |
-# | parchment | YYYY.MM.DD-MCVersion | Open community-sourced parameter names and javadocs layered on top of official |
-#
-# You must be aware of the Mojang license when using the 'official' or 'parchment' mappings.
-# See more information here: https://github.com/MinecraftForge/MCPConfig/blob/master/Mojang.md
-#
-# Parchment is an unofficial project maintained by ParchmentMC, separate from Minecraft Forge.
-# Additional setup is needed to use their mappings, see https://parchmentmc.org/docs/getting-started
+
+# --- 3. Mapping Configuration ---
 mapping_channel=official
-# The mapping version to query from the mapping channel.
-# This must match the format required by the mapping channel.
 mapping_version=1.20.1
 
-
-## Mod Properties
-
-# The unique mod identifier for the mod. Must be lowercase in English locale. Must fit the regex [a-z][a-z0-9_]{1,63}
-# Must match the String constant located in the main mod class annotated with @Mod.
+# --- 4. Mod Metadata ---
 mod_id=chunkpartyspreader
-# The human-readable display name for the mod.
 mod_name=Chunk Party Spreader
-# The license of the mod. Review your options at https://choosealicense.com/. All Rights Reserved is the default.
 mod_license=All Rights Reserved
-# The mod version. See https://semver.org/
 mod_version=1.0.0
-# The group ID for the mod. It is only important when publishing as an artifact to a Maven repository.
-# This should match the base package used for the mod sources.
-# See https://maven.apache.org/guides/mini/guide-naming-conventions.html
 mod_group_id=com.dawson.chunkpartyspreader
-# The authors of the mod. This is a simple text string that is used for display purposes in the mod list.
 mod_authors=Dawson
-# The description of the mod. This is a simple multiline text string that is used for display purposes in the mod list.
 mod_description=Server-side utility mod that assigns each new player a unique home chunk in a spiral pattern and optionally pre-generates it via Chunk By Chunk.
 ```
 
-`LICENSE.txt` (Content omitted)
+`LICENSE.txt`
+```text
+Unless noted below, Minecraft Forge, Forge Mod Loader, and all 
+parts herein are licensed under the terms of the LGPL 2.1 found
+here http://www.gnu.org/licenses/old-licenses/lgpl-2.1.txt and 
+copied below.
+
+Homepage: http://minecraftforge.net/
+          https://github.com/MinecraftForge/MinecraftForge
+          
+
+A note on authorship:
+All source artifacts are property of their original author, with
+the exclusion of the contents of the patches directory and others
+copied from it from time to time. Authorship of the contents of
+the patches directory is retained by the Minecraft Forge project.
+This is because the patches are partially machine generated
+artifacts, and are changed heavily due to the way forge works.
+Individual attribution within them is impossible.
+
+Consent:
+All contributions to Forge must consent to the release of any
+patch content to the Forge project.
+
+A note on infectivity:
+The LGPL is chosen specifically so that projects may depend on Forge
+features without being infected with its license. That is the 
+purpose of the LGPL. Mods and others using this code via ordinary
+Java mechanics for referencing libraries are specifically not bound
+by Forge's license for the Mod code.
+
+
+=== MCP Data ===
+This software includes data from the Minecraft Coder Pack (MCP), with kind permission
+from them. The license to MCP data is not transitive - distribution of this data by
+third parties requires independent licensing from the MCP team. This data is not
+redistributable without permission from the MCP team.
+
+=== Sharing ===
+I grant permission for some parts of FML to be redistributed outside the terms of the LGPL, for the benefit of
+the minecraft modding community. All contributions to these parts should be licensed under the same additional grant.
+
+-- Runtime patcher --
+License is granted to redistribute the runtime patcher code (src/main/java/net/minecraftforge/fml/common/patcher
+and subdirectories) under any alternative open source license as classified by the OSI (http://opensource.org/licenses)
+
+-- ASM transformers --
+License is granted to redistribute the ASM transformer code (src/main/java/net/minecraftforge/common/asm/ and subdirectories)
+under any alternative open source license as classified by the OSI (http://opensource.org/licenses)
+
+=========================================================================
+This software includes portions from the Apache Maven project at
+http://maven.apache.org/ specifically the ComparableVersion.java code. It is
+included based on guidelines at
+http://www.softwarefreedom.org/resources/2007/gpl-non-gpl-collaboration.html
+with notices intact. The only change is a non-functional change of package name.
+
+This software contains a partial repackaging of javaxdelta, a BSD licensed program for generating
+binary differences and applying them, sourced from the subversion at http://sourceforge.net/projects/javaxdelta/
+authored by genman, heikok, pivot.
+The only changes are to replace some Trove collection types with standard Java collections, and repackaged.
+
+This software includes the Monocraft font from https://github.com/IdreesInc/Monocraft/ for use in the early loading
+display.
+=========================================================================
+
+
+                  GNU LESSER GENERAL PUBLIC LICENSE
+                       Version 2.1, February 1999
+
+ Copyright (C) 1991, 1999 Free Software Foundation, Inc.
+ 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ Everyone is permitted to copy and distribute verbatim copies
+ of this license document, but changing it is not allowed.
+
+[This is the first released version of the Lesser GPL.  It also counts
+ as the successor of the GNU Library Public License, version 2, hence
+ the version number 2.1.]
+
+                            Preamble
+
+  The licenses for most software are designed to take away your
+freedom to share and change it.  By contrast, the GNU General Public
+Licenses are intended to guarantee your freedom to share and change
+free software--to make sure the software is free for all its users.
+
+  This license, the Lesser General Public License, applies to some
+specially designated software packages--typically libraries--of the
+Free Software Foundation and other authors who decide to use it.  You
+can use it too, but we suggest you first think carefully about whether
+this license or the ordinary General Public License is the better
+strategy to use in any particular case, based on the explanations below.
+
+  When we speak of free software, we are referring to freedom of use,
+not price.  Our General Public Licenses are designed to make sure that
+you have the freedom to distribute copies of free software (and charge
+for this service if you wish); that you receive source code or can get
+it if you want it; that you can change the software and use pieces of
+it in new free programs; and that you are informed that you can do
+these things.
+
+  To protect your rights, we need to make restrictions that forbid
+distributors to deny you these rights or to ask you to surrender these
+rights.  These restrictions translate to certain responsibilities for
+you if you distribute copies of the library or if you modify it.
+
+  For example, if you distribute copies of the library, whether gratis
+or for a fee, you must give the recipients all the rights that we gave
+you.  You must make sure that they, too, receive or can get the source
+code.  If you link other code with the library, you must provide
+complete object files to the recipients, so that they can relink them
+with the library after making changes to the library and recompiling
+it.  And you must show them these terms so they know their rights.
+
+  We protect your rights with a two-step method: (1) we copyright the
+library, and (2) we offer you this license, which gives you legal
+permission to copy, distribute and/or modify the library.
+
+  To protect each distributor, we want to make it very clear that
+there is no warranty for the free library.  Also, if the library is
+modified by someone else and passed on, the recipients should know
+that what they have is not the original version, so that the original
+author's reputation will not be affected by problems that might be
+introduced by others.
+
+  Finally, software patents pose a constant threat to the existence of
+any free program.  We wish to make sure that a company cannot
+effectively restrict the users of a free program by obtaining a
+restrictive license from a patent holder.  Therefore, we insist that
+any patent license obtained for a version of the library must be
+consistent with the full freedom of use specified in this license.
+
+  Most GNU software, including some libraries, is covered by the
+ordinary GNU General Public License.  This license, the GNU Lesser
+General Public License, applies to certain designated libraries, and
+is quite different from the ordinary General Public License.  We use
+this license for certain libraries in order to permit linking those
+libraries into non-free programs.
+
+  When a program is linked with a library, whether statically or using
+a shared library, the combination of the two is legally speaking a
+combined work, a derivative of the original library.  The ordinary
+General Public License therefore permits such linking only if the
+entire combination fits its criteria of freedom.  The Lesser General
+Public License permits more lax criteria for linking other code with
+the library.
+
+  We call this license the "Lesser" General Public License because it
+does Less to protect the user's freedom than the ordinary General
+Public License.  It also provides other free software developers Less
+of an advantage over competing non-free programs.  These disadvantages
+are the reason we use the ordinary General Public License for many
+libraries.  However, the Lesser license provides advantages in certain
+special circumstances.
+
+  For example, on rare occasions, there may be a special need to
+encourage the widest possible use of a certain library, so that it becomes
+a de-facto standard.  To achieve this, non-free programs must be
+allowed to use the library.  A more frequent case is that a free
+library does the same job as widely used non-free libraries.  In this
+case, there is little to gain by limiting the free library to free
+software only, so we use the Lesser General Public License.
+
+  In other cases, permission to use a particular library in non-free
+programs enables a greater number of people to use a large body of
+free software.  For example, permission to use the GNU C Library in
+non-free programs enables many more people to use the whole GNU
+operating system, as well as its variant, the GNU/Linux operating
+system.
+
+  Although the Lesser General Public License is Less protective of the
+users' freedom, it does ensure that the user of a program that is
+linked with the Library has the freedom and the wherewithal to run
+that program using a modified version of the Library.
+
+  The precise terms and conditions for copying, distribution and
+modification follow.  Pay close attention to the difference between a
+"work based on the library" and a "work that uses the library".  The
+former contains code derived from the library, whereas the latter must
+be combined with the library in order to run.
+
+                  GNU LESSER GENERAL PUBLIC LICENSE
+   TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
+
+  0. This License Agreement applies to any software library or other
+program which contains a notice placed by the copyright holder or
+other authorized party saying it may be distributed under the terms of
+this Lesser General Public License (also called "this License").
+Each licensee is addressed as "you".
+
+  A "library" means a collection of software functions and/or data
+prepared so as to be conveniently linked with application programs
+(which use some of those functions and data) to form executables.
+
+  The "Library", below, refers to any such software library or work
+which has been distributed under these terms.  A "work based on the
+Library" means either the Library or any derivative work under
+copyright law: that is to say, a work containing the Library or a
+portion of it, either verbatim or with modifications and/or translated
+straightforwardly into another language.  (Hereinafter, translation is
+included without limitation in the term "modification".)
+
+  "Source code" for a work means the preferred form of the work for
+making modifications to it.  For a library, complete source code means
+all the source code for all modules it contains, plus any associated
+interface definition files, plus the scripts used to control compilation
+and installation of the library.
+
+  Activities other than copying, distribution and modification are not
+covered by this License; they are outside its scope.  The act of
+running a program using the Library is not restricted, and output from
+such a program is covered only if its contents constitute a work based
+on the Library (independent of the use of the Library in a tool for
+writing it).  Whether that is true depends on what the Library does
+and what the program that uses the Library does.
+
+  1. You may copy and distribute verbatim copies of the Library's
+complete source code as you receive it, in any medium, provided that
+you conspicuously and appropriately publish on each copy an
+appropriate copyright notice and disclaimer of warranty; keep intact
+all the notices that refer to this License and to the absence of any
+warranty; and distribute a copy of this License along with the
+Library.
+
+  You may charge a fee for the physical act of transferring a copy,
+and you may at your option offer warranty protection in exchange for a
+fee.
+
+  2. You may modify your copy or copies of the Library or any portion
+of it, thus forming a work based on the Library, and copy and
+distribute such modifications or work under the terms of Section 1
+above, provided that you also meet all of these conditions:
+
+    a) The modified work must itself be a software library.
+
+    b) You must cause the files modified to carry prominent notices
+    stating that you changed the files and the date of any change.
+
+    c) You must cause the whole of the work to be licensed at no
+    charge to all third parties under the terms of this License.
+
+    d) If a facility in the modified Library refers to a function or a
+    table of data to be supplied by an application program that uses
+    the facility, other than as an argument passed when the facility
+    is invoked, then you must make a good faith effort to ensure that,
+    in the event an application does not supply such function or
+    table, the facility still operates, and performs whatever part of
+    its purpose remains meaningful.
+
+    (For example, a function in a library to compute square roots has
+    a purpose that is entirely well-defined independent of the
+    application.  Therefore, Subsection 2d requires that any
+    application-supplied function or table used by this function must
+    be optional: if the application does not supply it, the square
+    root function must still compute square roots.)
+
+These requirements apply to the modified work as a whole.  If
+identifiable sections of that work are not derived from the Library,
+and can be reasonably considered independent and separate works in
+themselves, then this License, and its terms, do not apply to those
+sections when you distribute them as separate works.  But when you
+distribute the same sections as part of a whole which is a work based
+on the Library, the distribution of the whole must be on the terms of
+this License, whose permissions for other licensees extend to the
+entire whole, and thus to each and every part regardless of who wrote
+it.
+
+Thus, it is not the intent of this section to claim rights or contest
+your rights to work written entirely by you; rather, the intent is to
+exercise the right to control the distribution of derivative or
+collective works based on the Library.
+
+In addition, mere aggregation of another work not based on the Library
+with the Library (or with a work based on the Library) on a volume of
+a storage or distribution medium does not bring the other work under
+the scope of this License.
+
+  3. You may opt to apply the terms of the ordinary GNU General Public
+License instead of this License to a given copy of the Library.  To do
+this, you must alter all the notices that refer to this License, so
+that they refer to the ordinary GNU General Public License, version 2,
+instead of to this License.  (If a newer version than version 2 of the
+ordinary GNU General Public License has appeared, then you can specify
+that version instead if you wish.)  Do not make any other change in
+these notices.
+
+  Once this change is made in a given copy, it is irreversible for
+that copy, so the ordinary GNU General Public License applies to all
+subsequent copies and derivative works made from that copy.
+
+  This option is useful when you wish to copy part of the code of
+the Library into a program that is not a library.
+
+  4. You may copy and distribute the Library (or a portion or
+derivative of it, under Section 2) in object code or executable form
+under the terms of Sections 1 and 2 above provided that you accompany
+it with the complete corresponding machine-readable source code, which
+must be distributed under the terms of Sections 1 and 2 above on a
+medium customarily used for software interchange.
+
+  If distribution of object code is made by offering access to copy
+from a designated place, then offering equivalent access to copy the
+source code from the same place satisfies the requirement to
+distribute the source code, even though third parties are not
+compelled to copy the source along with the object code.
+
+  5. A program that contains no derivative of any portion of the
+Library, but is designed to work with the Library by being compiled or
+linked with it, is called a "work that uses the Library".  Such a
+work, in isolation, is not a derivative work of the Library, and
+therefore falls outside the scope of this License.
+
+  However, linking a "work that uses the Library" with the Library
+creates an executable that is a derivative of the Library (because it
+contains portions of the Library), rather than a "work that uses the
+library".  The executable is therefore covered by this License.
+Section 6 states terms for distribution of such executables.
+
+  When a "work that uses the Library" uses material from a header file
+that is part of the Library, the object code for the work may be a
+derivative work of the Library even though the source code is not.
+Whether this is true is especially significant if the work can be
+linked without the Library, or if the work is itself a library.  The
+threshold for this to be true is not precisely defined by law.
+
+  If such an object file uses only numerical parameters, data
+structure layouts and accessors, and small macros and small inline
+functions (ten lines or less in length), then the use of the object
+file is unrestricted, regardless of whether it is legally a derivative
+work.  (Executables containing this object code plus portions of the
+Library will still fall under Section 6.)
+
+  Otherwise, if the work is a derivative of the Library, you may
+distribute the object code for the work under the terms of Section 6.
+Any executables containing that work also fall under Section 6,
+whether or not they are linked directly with the Library itself.
+
+  6. As an exception to the Sections above, you may also combine or
+link a "work that uses the Library" with the Library to produce a
+work containing portions of the Library, and distribute that work
+under terms of your choice, provided that the terms permit
+modification of the work for the customer's own use and reverse
+engineering for debugging such modifications.
+
+  You must give prominent notice with each copy of the work that the
+Library is used in it and that the Library and its use are covered by
+this License.  You must supply a copy of this License.  If the work
+during execution displays copyright notices, you must include the
+copyright notice for the Library among them, as well as a reference
+directing the user to the copy of this License.  Also, you must do one
+of these things:
+
+    a) Accompany the work with the complete corresponding
+    machine-readable source code for the Library including whatever
+    changes were used in the work (which must be distributed under
+    Sections 1 and 2 above); and, if the work is an executable linked
+    with the Library, with the complete machine-readable "work that
+    uses the Library", as object code and/or source code, so that the
+    user can modify the Library and then relink to produce a modified
+    executable containing the modified Library.  (It is understood
+    that the user who changes the contents of definitions files in the
+    Library will not necessarily be able to recompile the application
+    to use the modified definitions.)
+
+    b) Use a suitable shared library mechanism for linking with the
+    Library.  A suitable mechanism is one that (1) uses at run time a
+    copy of the library already present on the user's computer system,
+    rather than copying library functions into the executable, and (2)
+    will operate properly with a modified version of the library, if
+    the user installs one, as long as the modified version is
+    interface-compatible with the version that the work was made with.
+
+    c) Accompany the work with a written offer, valid for at
+    least three years, to give the same user the materials
+    specified in Subsection 6a, above, for a charge no more
+    than the cost of performing this distribution.
+
+    d) If distribution of the work is made by offering access to copy
+    from a designated place, offer equivalent access to copy the above
+    specified materials from the same place.
+
+    e) Verify that the user has already received a copy of these
+    materials or that you have already sent this user a copy.
+
+  For an executable, the required form of the "work that uses the
+Library" must include any data and utility programs needed for
+reproducing the executable from it.  However, as a special exception,
+the materials to be distributed need not include anything that is
+normally distributed (in either source or binary form) with the major
+components (compiler, kernel, and so on) of the operating system on
+which the executable runs, unless that component itself accompanies
+the executable.
+
+  It may happen that this requirement contradicts the license
+restrictions of other proprietary libraries that do not normally
+accompany the operating system.  Such a contradiction means you cannot
+use both them and the Library together in an executable that you
+distribute.
+
+  7. You may place library facilities that are a work based on the
+Library side-by-side in a single library together with other library
+facilities not covered by this License, and distribute such a combined
+library, provided that the separate distribution of the work based on
+the Library and of the other library facilities is otherwise
+permitted, and provided that you do these two things:
+
+    a) Accompany the combined library with a copy of the same work
+    based on the Library, uncombined with any other library
+    facilities.  This must be distributed under the terms of the
+    Sections above.
+
+    b) Give prominent notice with the combined library of the fact
+    that part of it is a work based on the Library, and explaining
+    where to find the accompanying uncombined form of the same work.
+
+  8. You may not copy, modify, sublicense, link with, or distribute
+the Library except as expressly provided under this License.  Any
+attempt otherwise to copy, modify, sublicense, link with, or
+distribute the Library is void, and will automatically terminate your
+rights under this License.  However, parties who have received copies,
+or rights, from you under this License will not have their licenses
+terminated so long as such parties remain in full compliance.
+
+  9. You are not required to accept this License, since you have not
+signed it.  However, nothing else grants you permission to modify or
+distribute the Library or its derivative works.  These actions are
+prohibited by law if you do not accept this License.  Therefore, by
+modifying or distributing the Library (or any work based on the
+Library), you indicate your acceptance of this License to do so, and
+all its terms and conditions for copying, distributing or modifying
+the Library or works based on it.
+
+  10. Each time you redistribute the Library (or any work based on the
+Library), the recipient automatically receives a license from the
+original licensor to copy, distribute, link with or modify the Library
+subject to these terms and conditions.  You may not impose any further
+restrictions on the recipients' exercise of the rights granted herein.
+You are not responsible for enforcing compliance by third parties with
+this License.
+
+  11. If, as a consequence of a court judgment or allegation of patent
+infringement or for any other reason (not limited to patent issues),
+conditions are imposed on you (whether by court order, agreement or
+otherwise) that contradict the conditions of this License, they do not
+excuse you from the conditions of this License.  If you cannot
+distribute so as to satisfy simultaneously your obligations under this
+License and any other pertinent obligations, then as a consequence you
+may not distribute the Library at all.  For example, if a patent
+license would not permit royalty-free redistribution of the Library by
+all those who receive copies directly or indirectly through you, then
+the only way you could satisfy both it and this License would be to
+refrain entirely from distribution of the Library.
+
+If any portion of this section is held invalid or unenforceable under any
+particular circumstance, the balance of the section is intended to apply,
+and the section as a whole is intended to apply in other circumstances.
+
+It is not the purpose of this section to induce you to infringe any
+patents or other property right claims or to contest validity of any
+such claims; this section has the sole purpose of protecting the
+integrity of the free software distribution system which is
+implemented by public license practices.  Many people have made
+generous contributions to the wide range of software distributed
+through that system in reliance on consistent application of that
+system; it is up to the author/donor to decide if he or she is willing
+to distribute software through any other system and a licensee cannot
+impose that choice.
+
+This section is intended to make thoroughly clear what is believed to
+be a consequence of the rest of this License.
+
+  12. If the distribution and/or use of the Library is restricted in
+certain countries either by patents or by copyrighted interfaces, the
+original copyright holder who places the Library under this License may add
+an explicit geographical distribution limitation excluding those countries,
+so that distribution is permitted only in or among countries not thus
+excluded.  In such case, this License incorporates the limitation as if
+written in the body of this License.
+
+  13. The Free Software Foundation may publish revised and/or new
+versions of the Lesser General Public License from time to time.
+Such new versions will be similar in spirit to the present version,
+but may differ in detail to address new problems or concerns.
+
+Each version is given a distinguishing version number.  If the Library
+specifies a version number of this License which applies to it and
+"any later version", you have the option of following the terms and
+conditions either of that version or of any later version published by
+the Free Software Foundation.  If the Library does not specify a
+license version number, you may choose any version ever published by
+the Free Software Foundation.
+
+  14. If you wish to incorporate parts of the Library into other free
+programs whose distribution conditions are incompatible with these,
+write to the author to ask for permission.  For software which is
+copyrighted by the Free Software Foundation, write to the Free
+Software Foundation; we sometimes make exceptions for this.  Our
+decision will be guided by the two goals of preserving the free status
+of all derivatives of our free software and of promoting the sharing
+and reuse of software generally.
+
+                            NO WARRANTY
+
+  15. BECAUSE THE LIBRARY IS LICENSED FREE OF CHARGE, THERE IS NO
+WARRANTY FOR THE LIBRARY, TO THE EXTENT PERMITTED BY APPLICABLE LAW.
+EXCEPT WHEN OTHERWISE STATED IN WRITING THE COPYRIGHT HOLDERS AND/OR
+OTHER PARTIES PROVIDE THE LIBRARY "AS IS" WITHOUT WARRANTY OF ANY
+KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+PURPOSE.  THE ENTIRE RISK AS TO THE QUALITY AND PERFORMANCE OF THE
+LIBRARY IS WITH YOU.  SHOULD THE LIBRARY PROVE DEFECTIVE, YOU ASSUME
+THE COST OF ALL NECESSARY SERVICING, REPAIR OR CORRECTION.
+
+  16. IN NO EVENT UNLESS REQUIRED BY APPLICABLE LAW OR AGREED TO IN
+WRITING WILL ANY COPYRIGHT HOLDER, OR ANY OTHER PARTY WHO MAY MODIFY
+AND/OR REDISTRIBUTE THE LIBRARY AS PERMITTED ABOVE, BE LIABLE TO YOU
+FOR DAMAGES, INCLUDING ANY GENERAL, SPECIAL, INCIDENTAL OR
+CONSEQUENTIAL DAMAGES ARISING OUT OF THE USE OR INABILITY TO USE THE
+LIBRARY (INCLUDING BUT NOT LIMITED TO LOSS OF DATA OR DATA BEING
+RENDERED INACCURATE OR LOSSES SUSTAINED BY YOU OR THIRD PARTIES OR A
+FAILURE OF THE LIBRARY TO OPERATE WITH ANY OTHER SOFTWARE), EVEN IF
+SUCH HOLDER OR OTHER PARTY HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH
+DAMAGES.
+
+                     END OF TERMS AND CONDITIONS
+
+```
 
 `README.txt`
 ```text
@@ -1593,74 +2061,727 @@ package com.dawson.chunkpartyspreader;
 // (Imports omitted to save token count)
 
 /**
- * Chunk Party Spreader
- *
- * Server-side utility mod. Core logic will be registered on the Forge event bus in later steps.
+ * The main entry point for the Chunk Party Spreader mod.
+ * Handles initial setup and configuration registration.
  */
 @Mod(ChunkPartySpreader.MODID)
+@SuppressWarnings("removal")
 public class ChunkPartySpreader {
+
+    /* ──────────────────────────────────────────────────────────────────────────────
+     *        Constants and Static Utilities
+     * ────────────────────────────────────────────────────────────────────────────*/
+
     public static final String MODID = "chunkpartyspreader";
     public static final Logger LOGGER = LogUtils.getLogger();
 
+    /* ──────────────────────────────────────────────────────────────────────────────
+     *        Constructors
+     * ────────────────────────────────────────────────────────────────────────────*/
+
+    /**
+     * Initializes the mod and registers the common configuration file.
+     */
     public ChunkPartySpreader() {
-        // Intentionally minimal for initial project setup.
+        // Register the Forge config specification.
+        ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, CPSConfig.SPEC);
     }
 }
 ```
 
-`Config.java`
+`CPSConfig.java`
 ```java
 package com.dawson.chunkpartyspreader;
 
 // (Imports omitted to save token count)
 
-// An example config class. This is not required, but it's a good idea to have one to keep your config organized.
-// Demonstrates how to use Forge's config APIs
-@Mod.EventBusSubscriber(modid = com.dawson.chunkpartyspreader.ChunkPartySpreader.MODID, bus = Mod.EventBusSubscriber.Bus.MOD)
-public class Config
-{
+/**
+ * Defines the common configuration settings for the Chunk Party Spreader.
+ * These settings are stored in 'chunkpartyspreader-common.toml'.
+ */
+public final class CPSConfig {
+
+    /* ──────────────────────────────────────────────────────────────────────────────
+     *        Configuration Specifications
+     * ────────────────────────────────────────────────────────────────────────────*/
+
     private static final ForgeConfigSpec.Builder BUILDER = new ForgeConfigSpec.Builder();
 
-    private static final ForgeConfigSpec.BooleanValue LOG_DIRT_BLOCK = BUILDER
-            .comment("Whether to log the dirt block on common setup")
-            .define("logDirtBlock", true);
+    // --- Configuration Values ---
 
-    private static final ForgeConfigSpec.IntValue MAGIC_NUMBER = BUILDER
-            .comment("A magic number")
-            .defineInRange("magicNumber", 42, 0, Integer.MAX_VALUE);
+    /**
+     * Distance between spiral points in chunks.
+     */
+    public static final ForgeConfigSpec.IntValue GRID_SPACING_CHUNKS = BUILDER
+            .comment("Distance between spiral points in chunks (25 = 400 blocks).")
+            .defineInRange("grid_spacing_chunks", 25, 1, Integer.MAX_VALUE);
 
-    public static final ForgeConfigSpec.ConfigValue<String> MAGIC_NUMBER_INTRODUCTION = BUILDER
-            .comment("What you want the introduction message to be for the magic number")
-            .define("magicNumberIntroduction", "The magic number is... ");
+    /**
+     * If true, the algorithm will skip coordinates that land in ocean biomes.
+     */
+    public static final ForgeConfigSpec.BooleanValue SKIP_OCEANS = BUILDER
+            .comment("If true, discard coordinates that land in an ocean biome.")
+            .define("skip_oceans", true);
 
-    // a list of strings that are treated as resource locations for items
-    private static final ForgeConfigSpec.ConfigValue<List<? extends String>> ITEM_STRINGS = BUILDER
-            .comment("A list of items to log on common setup.")
-            .defineListAllowEmpty("items", List.of("minecraft:iron_ingot"), Config::validateItemName);
+    /**
+     * The command executed to pre-generate chunks via the Chunk By Chunk mod.
+     */
+    public static final ForgeConfigSpec.ConfigValue<String> GENERATION_COMMAND = BUILDER
+            .comment("Command to execute for chunk pre-generation.",
+                    "Use %d placeholders for BLOCK X and BLOCK Z (Center of the chunk).",
+                    "Default uses /execute positioned to force the mod to spawn the chunk at that location.")
+            .define("generation_command", "/execute in minecraft:overworld positioned %d 0 %d run chunkbychunk:spawnChunk");
 
-    static final ForgeConfigSpec SPEC = BUILDER.build();
+    /**
+     * Horizontal offset for the center of the spiral.
+     */
+    public static final ForgeConfigSpec.IntValue CENTER_OFFSET_X = BUILDER
+            .comment("Center X offset (in chunks) for the spiral.")
+            .defineInRange("center_offset_x", 0, Integer.MIN_VALUE, Integer.MAX_VALUE);
 
-    public static boolean logDirtBlock;
-    public static int magicNumber;
-    public static String magicNumberIntroduction;
-    public static Set<Item> items;
+    /**
+     * Vertical (Z) offset for the center of the spiral.
+     */
+    public static final ForgeConfigSpec.IntValue CENTER_OFFSET_Z = BUILDER
+            .comment("Center Z offset (in chunks) for the spiral.")
+            .defineInRange("center_offset_z", 0, Integer.MIN_VALUE, Integer.MAX_VALUE);
 
-    private static boolean validateItemName(final Object obj)
-    {
-        return obj instanceof final String itemName && ForgeRegistries.ITEMS.containsKey(new ResourceLocation(itemName));
+    /**
+     * The built configuration specification.
+     * MUST be defined AFTER all the configuration values above, or the spec will be empty.
+     */
+    public static final ForgeConfigSpec SPEC = BUILDER.build();
+
+    /* ──────────────────────────────────────────────────────────────────────────────
+     *        Constructors
+     * ────────────────────────────────────────────────────────────────────────────*/
+
+    private CPSConfig() {}
+}
+```
+
+`SpiralCalculator.java`
+```java
+package com.dawson.chunkpartyspreader;
+
+// (Imports omitted to save token count)
+
+/**
+ * Utility for calculating geographic offsets based on a square spiral pattern (Ulam variation).
+ */
+public final class SpiralCalculator {
+
+    /* ──────────────────────────────────────────────────────────────────────────────
+     *        Constants and Static Utilities
+     * ────────────────────────────────────────────────────────────────────────────*/
+
+    /**
+     * A simple 2D integer coordinate container.
+     */
+    public record IntPoint(int x, int z) {}
+
+    private SpiralCalculator() {}
+
+    /**
+     * Calculates the unit grid coordinate for a given index.
+     * Index 0 returns (0,0), then spirals outwards: (1,0), (1,1), (0,1), (-1,1)...
+     *
+     * @param index The spiral index to calculate.
+     * @return An IntPoint representing the unit coordinate.
+     */
+    public static IntPoint unitForIndex(int index) {
+        // --- Early Exit ---
+        if (index <= 0) {
+            return new IntPoint(0, 0);
+        }
+
+        // --- Ring Calculation ---
+        long n = index;
+        long r = (long) Math.ceil((Math.sqrt(n + 1d) - 1d) / 2d); // current ring radius
+        long side = 2L * r;
+        long max = (2L * r + 1);
+        max = max * max - 1; // max index on this ring at (r, -r)
+
+        // distance backwards from the max index point on the ring
+        long d = max - n;
+
+        // --- Perimeter Mapping ---
+        long x, z;
+        if (d <= side) {                 // Bottom edge: (r,-r) -> (-r,-r)
+            x = r - d;
+            z = -r;
+        } else if (d <= 2 * side) {      // Left edge: (-r,-r) -> (-r,r)
+            x = -r;
+            z = -r + (d - side);
+        } else if (d <= 3 * side) {      // Top edge: (-r,r) -> (r,r)
+            x = -r + (d - 2 * side);
+            z = r;
+        } else {                         // Right edge: (r,r) -> (r,-r+1)
+            x = r;
+            z = r - (d - 3 * side);
+        }
+
+        return new IntPoint((int) x, (int) z);
+    }
+
+    /**
+     * Scales a unit spiral coordinate into a Minecraft ChunkPos.
+     *
+     * @param index         The spiral index.
+     * @param spacingChunks Distance between points in chunks.
+     * @param centerOffsetX Global X offset for the spiral center.
+     * @param centerOffsetZ Global Z offset for the spiral center.
+     * @return A ChunkPos representing the scaled target.
+     */
+    public static ChunkPos chunkForIndex(int index, int spacingChunks, int centerOffsetX, int centerOffsetZ) {
+        IntPoint p = unitForIndex(index);
+
+        long cx = (long) p.x() * (long) spacingChunks + (long) centerOffsetX;
+        long cz = (long) p.z() * (long) spacingChunks + (long) centerOffsetZ;
+
+        return new ChunkPos((int) cx, (int) cz);
+    }
+}
+```
+
+`SpiralCalculatorTestMain.java`
+```java
+package com.dawson.chunkpartyspreader;
+
+/**
+ * Standalone test utility to verify the SpiralCalculator logic without launching Minecraft.
+ */
+public final class SpiralCalculatorTestMain {
+
+    /* ──────────────────────────────────────────────────────────────────────────────
+     *        Constructors
+     * ────────────────────────────────────────────────────────────────────────────*/
+
+    private SpiralCalculatorTestMain() {}
+
+    /* ──────────────────────────────────────────────────────────────────────────────
+     *        Public Methods
+     * ────────────────────────────────────────────────────────────────────────────*/
+
+    /**
+     * Iterates through the first 25 indices and prints the calculated unit coordinates to the console.
+     */
+    public static void main(String[] args) {
+        // --- Algorithm Verification ---
+        for (int i = 0; i < 25; i++) {
+            var p = SpiralCalculator.unitForIndex(i);
+            System.out.printf("%d -> (%d,%d)%n", i, p.x(), p.z());
+        }
+    }
+}
+```
+
+`SpreaderEvents.java`
+```java
+package com.dawson.chunkpartyspreader;
+
+// (Imports omitted to save token count)
+
+@Mod.EventBusSubscriber(modid = ChunkPartySpreader.MODID, bus = Mod.EventBusSubscriber.Bus.FORGE)
+public final class SpreaderEvents {
+
+    // --- State Management for Stasis ---
+    // Tracks players floating in the sky waiting for their chunk to generate.
+    private static final Map<UUID, PendingTeleport> PENDING_TARGETS = new HashMap<>();
+    private static final String TAG_WAITING = "cps_waiting_for_chunk";
+    private static final int TIMEOUT_TICKS = 600; // 30 seconds max wait
+
+    private record PendingTeleport(ChunkPos targetChunk, long startTick) {}
+
+    /* ──────────────────────────────────────────────────────────────────────────────
+     *        Event Handlers
+     * ────────────────────────────────────────────────────────────────────────────*/
+
+    // --- 1. First-Join Logic (High Priority) ---
+    @SubscribeEvent(priority = EventPriority.HIGH)
+    public static void onPlayerLogin(PlayerEvent.PlayerLoggedInEvent event) {
+        if (!(event.getEntity() instanceof ServerPlayer player) || player.level().isClientSide) {
+            return;
+        }
+
+        ChunkPartySpreader.LOGGER.info("[Chunk Party Spreader] - Player logged in: {}", player.getName().getString());
+
+        MinecraftServer server = player.getServer();
+        if (server == null) return;
+
+        ServerLevel level = server.overworld();
+        UUID uuid = player.getUUID();
+        SpreaderWorldData data = SpreaderWorldData.get(level);
+
+        // A. Existing Assignment Check
+        BlockPos existingAssignment = data.getAssignment(uuid);
+        if (existingAssignment != null) {
+            ChunkPartySpreader.LOGGER.info("[Chunk Party Spreader] - Player already has assignment at: {}", existingAssignment);
+
+            // Resume Stasis if they logged out while waiting
+            if (player.getTags().contains(TAG_WAITING)) {
+                ChunkPartySpreader.LOGGER.info("[Chunk Party Spreader] - Player has waiting tag. Resuming stasis polling...");
+                ChunkPos cPos = new ChunkPos(existingAssignment);
+                PENDING_TARGETS.put(uuid, new PendingTeleport(cPos, server.getTickCount()));
+
+                // Ensure they are suspended
+                player.setNoGravity(true);
+                player.teleportTo(level, existingAssignment.getX() + 0.5, 320, existingAssignment.getZ() + 0.5, player.getYRot(), player.getXRot());
+
+                // Refresh Ticket
+                level.getChunkSource().addRegionTicket(TicketType.PLAYER, cPos, 3, cPos);
+            }
+            return;
+        }
+
+        ChunkPartySpreader.LOGGER.info("[Chunk Party Spreader] - No assignment found. Beginning spiral calculation...");
+
+        // B. Spiral Calculation
+        int spacing = CPSConfig.GRID_SPACING_CHUNKS.get();
+        int offX = CPSConfig.CENTER_OFFSET_X.get();
+        int offZ = CPSConfig.CENTER_OFFSET_Z.get();
+        boolean skipOceans = CPSConfig.SKIP_OCEANS.get();
+
+        int idx = data.getCurrentSpiralIndex();
+        ChunkPos chosenChunk = null;
+
+        for (int attempts = 0; attempts < 10000; attempts++) {
+            ChunkPos candidate = SpiralCalculator.chunkForIndex(idx, spacing, offX, offZ);
+
+            // Check Biome (skip oceans)
+            int bx = candidate.getMinBlockX() + 8;
+            int bz = candidate.getMinBlockZ() + 8;
+            BlockPos biomePos = new BlockPos(bx, level.getSeaLevel(), bz);
+
+            if (skipOceans && level.getBiome(biomePos).is(BiomeTags.IS_OCEAN)) {
+                idx++;
+                data.setCurrentSpiralIndex(idx); // Increment and save progress
+                continue;
+            }
+
+            chosenChunk = candidate;
+            ChunkPartySpreader.LOGGER.info("[Chunk Party Spreader] - Found valid chunk at index {}: {}", idx, chosenChunk);
+            break;
+        }
+
+        if (chosenChunk == null) {
+            ChunkPartySpreader.LOGGER.error("[Chunk Party Spreader] - Failed to find valid chunk after 10000 attempts. Using fallback.");
+            chosenChunk = SpiralCalculator.chunkForIndex(idx, spacing, offX, offZ);
+        }
+
+        // C. Reserve Index & Save Assignment Immediately
+        data.setCurrentSpiralIndex(idx + 1);
+
+        // We set a temporary "Home" at Y=320.
+        BlockPos tempPos = new BlockPos(chosenChunk.getMinBlockX() + 8, 320, chosenChunk.getMinBlockZ() + 8);
+        data.putAssignment(uuid, tempPos);
+
+        // D. Force Chunk Loading
+        ChunkPartySpreader.LOGGER.info("[Chunk Party Spreader] - Adding PLAYER ticket to force load chunk {}", chosenChunk);
+        level.getChunkSource().addRegionTicket(TicketType.PLAYER, chosenChunk, 3, chosenChunk);
+        level.getChunk(chosenChunk.x, chosenChunk.z, ChunkStatus.FEATURES, true);
+
+        // E. Trigger Generation Command
+        if (ModList.get().isLoaded("chunkbychunk")) {
+            String fmt = CPSConfig.GENERATION_COMMAND.get();
+            int blockX = chosenChunk.getMinBlockX() + 8;
+            int blockZ = chosenChunk.getMinBlockZ() + 8;
+
+            // Format command if it contains placeholders, otherwise use raw
+            String cmd = fmt.contains("%d") ? String.format(fmt, blockX, blockZ) : fmt;
+
+            ChunkPartySpreader.LOGGER.info("[Chunk Party Spreader] - Executing generation command: {}", cmd);
+
+            CommandSourceStack source = server.createCommandSourceStack()
+                    .withSuppressedOutput()
+                    .withPermission(4)
+                    .withLevel(level) // Explicitly Overworld
+                    .withPosition(new Vec3(blockX, 320, blockZ)); // Explicitly at target
+
+            try {
+                server.getCommands().performPrefixedCommand(source, cmd);
+            } catch (Exception e) {
+                ChunkPartySpreader.LOGGER.error("[Chunk Party Spreader] - Command execution failed", e);
+            }
+        }
+
+        // F. Enable Stasis
+        ChunkPartySpreader.LOGGER.info("[Chunk Party Spreader] - Putting player in stasis at Y=320 while chunk generates...");
+        player.addTag(TAG_WAITING);
+        player.setNoGravity(true);
+        player.teleportTo(level, tempPos.getX() + 0.5, 320, tempPos.getZ() + 0.5, player.getYRot(), player.getXRot());
+
+        PENDING_TARGETS.put(uuid, new PendingTeleport(chosenChunk, server.getTickCount()));
+    }
+
+    // --- 2. Stasis Polling (Server Tick) ---
+    @SubscribeEvent
+    public static void onServerTick(TickEvent.ServerTickEvent event) {
+        if (event.phase != TickEvent.Phase.END || PENDING_TARGETS.isEmpty()) return;
+
+        MinecraftServer server = event.getServer();
+        if (server == null) return;
+
+        Iterator<Map.Entry<UUID, PendingTeleport>> it = PENDING_TARGETS.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry<UUID, PendingTeleport> entry = it.next();
+            UUID uuid = entry.getKey();
+            PendingTeleport pending = entry.getValue();
+
+            ServerPlayer player = server.getPlayerList().getPlayer(uuid);
+
+            // If player disconnected, remove from queue
+            if (player == null) {
+                it.remove();
+                continue;
+            }
+
+            // Poll every 20 ticks (1 second)
+            if (player.getServer().getTickCount() % 20 != 0) continue;
+
+            ServerLevel level = player.serverLevel();
+            int centerBlockX = pending.targetChunk.getMinBlockX() + 8;
+            int centerBlockZ = pending.targetChunk.getMinBlockZ() + 8;
+
+            // Check Height
+            int groundY = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, centerBlockX, centerBlockZ);
+            int minBuild = level.getMinBuildHeight();
+
+            boolean isReady = groundY > minBuild + 1;
+            boolean isTimeout = (player.getServer().getTickCount() - pending.startTick) > TIMEOUT_TICKS;
+
+            if (isReady) {
+                ChunkPartySpreader.LOGGER.info("[Chunk Party Spreader] - Chunk generated! Found ground at Y={}. Releasing {}.", groundY, player.getName().getString());
+
+                BlockPos finalHome = new BlockPos(centerBlockX, groundY + 1, centerBlockZ);
+                SpreaderWorldData.get(level).putAssignment(uuid, finalHome);
+
+                // Cleanup
+                level.getChunkSource().removeRegionTicket(TicketType.PLAYER, pending.targetChunk, 3, pending.targetChunk);
+                player.removeTag(TAG_WAITING);
+                player.setNoGravity(false);
+                player.teleportTo(level, finalHome.getX() + 0.5, finalHome.getY(), finalHome.getZ() + 0.5, player.getYRot(), player.getXRot());
+                player.setRespawnPosition(level.dimension(), finalHome, player.getYRot(), true, false);
+
+                it.remove();
+            } else if (isTimeout) {
+                ChunkPartySpreader.LOGGER.warn("[Chunk Party Spreader] - Generation timeout (60s) for {}. Releasing to gravity (fallback).", player.getName().getString());
+                level.getChunkSource().removeRegionTicket(TicketType.PLAYER, pending.targetChunk, 3, pending.targetChunk);
+                player.removeTag(TAG_WAITING);
+                player.setNoGravity(false);
+                it.remove();
+            } else {
+                if (player.getServer().getTickCount() % 100 == 0) {
+                    ChunkPartySpreader.LOGGER.info("[Chunk Party Spreader] - Waiting for generation... Current Height: {} (Void)", groundY);
+                }
+            }
+        }
+    }
+
+    // --- 3. Respawn Fallback Logic ---
+    @SubscribeEvent
+    public static void onPlayerRespawn(PlayerEvent.PlayerRespawnEvent event) {
+        if (!(event.getEntity() instanceof ServerPlayer player) || player.level().isClientSide || event.isEndConquered()) {
+            return;
+        }
+
+        ChunkPartySpreader.LOGGER.info("[Chunk Party Spreader] - Player respawning: {}. Checking for spawn point override...", player.getName().getString());
+
+        MinecraftServer server = player.getServer();
+        if (server == null) return;
+
+        if (hasValidSpawnBlockOrForced(player, server)) {
+            ChunkPartySpreader.LOGGER.info("[Chunk Party Spreader] - Player has valid/forced spawn. No intervention.");
+            return;
+        }
+
+        ServerLevel overworld = server.overworld();
+        SpreaderWorldData data = SpreaderWorldData.get(overworld);
+        BlockPos home = data.getAssignment(player.getUUID());
+
+        if (home != null) {
+            ChunkPartySpreader.LOGGER.info("[Chunk Party Spreader] - No valid bed found. Teleporting to Spiral Home: {}", home);
+            player.teleportTo(overworld, home.getX() + 0.5, home.getY(), home.getZ() + 0.5, player.getYRot(), player.getXRot());
+            player.setRespawnPosition(overworld.dimension(), home, player.getYRot(), true, false);
+        } else {
+            ChunkPartySpreader.LOGGER.info("[Chunk Party Spreader] - No Spiral Assignment found for respawning player.");
+        }
+    }
+
+    /* ──────────────────────────────────────────────────────────────────────────────
+     *        Private Helpers
+     * ────────────────────────────────────────────────────────────────────────────*/
+
+    private static boolean hasValidSpawnBlockOrForced(ServerPlayer player, MinecraftServer server) {
+        if (player.isRespawnForced()) return true;
+
+        BlockPos respawnPos = player.getRespawnPosition();
+        if (respawnPos == null) return false;
+
+        ServerLevel respawnLevel = server.getLevel(player.getRespawnDimension());
+        if (respawnLevel == null) return false;
+
+        BlockState state = respawnLevel.getBlockState(respawnPos);
+
+        if (state.is(BlockTags.BEDS)) return true;
+
+        if (state.is(Blocks.RESPAWN_ANCHOR)) {
+            Integer charge = state.getValue(RespawnAnchorBlock.CHARGE);
+            return charge != null && charge > 0;
+        }
+
+        return false;
+    }
+}
+```
+
+`SpreaderSpawnFixes.java`
+```java
+package com.dawson.chunkpartyspreader;
+
+// (Imports omitted to save token count)
+
+@Mod.EventBusSubscriber(modid = ChunkPartySpreader.MODID)
+public final class SpreaderSpawnFixes {
+
+    private SpreaderSpawnFixes() {}
+
+    // Guard to prevent infinite recursion when we re-fire the set spawn event
+    private static final ThreadLocal<Boolean> IS_ADJUSTING_SPAWN = ThreadLocal.withInitial(() -> false);
+
+    /* ──────────────────────────────────────────────────────────────────────────────
+     *        Event Handlers
+     * ────────────────────────────────────────────────────────────────────────────*/
+
+    // --- 1. Fix Bed Respawn (Keep spawn even if bed broken) ---
+    @SubscribeEvent
+    public static void onSetSpawn(PlayerSetSpawnEvent event) {
+        // If we are currently adjusting, ignore to prevent loop
+        if (IS_ADJUSTING_SPAWN.get()) return;
+
+        // We only care about ensuring the spawn is FORCED (survives bed breaking)
+        // If it's already forced, or if the new spawn is null (clearing spawn), we do nothing.
+        if (event.isForced() || event.getNewSpawn() == null) return;
+
+        // Check if the target is a Bed
+        Level level = event.getEntity().level();
+        if (level.isClientSide) return;
+
+        BlockPos newPos = event.getNewSpawn();
+        // Just blind-force it. If the player is setting a spawn, we want it to stick.
+        // This covers Beds and Anchors.
+
+        ChunkPartySpreader.LOGGER.info("[Chunk Party Spreader] - Intercepting Spawn Set at {}. Forcing persistence.", newPos);
+
+        // We must cancel the event to stop the original "non-forced" set,
+        // and apply our own "forced" set.
+        event.setCanceled(true);
+
+        IS_ADJUSTING_SPAWN.set(true);
+        try {
+            if (event.getEntity() instanceof ServerPlayer sp) {
+                // Call the method again, but with forced = true
+                sp.setRespawnPosition(event.getSpawnLevel(), newPos, 0.0f, true, true);
+            }
+        } finally {
+            IS_ADJUSTING_SPAWN.set(false);
+        }
+    }
+
+    // --- 2. Void Safety Platform Checks ---
+
+    @SubscribeEvent
+    public static void onPlayerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
+        if (event.getEntity() instanceof ServerPlayer player) {
+            ensureNotVoid(player);
+        }
     }
 
     @SubscribeEvent
-    static void onLoad(final ModConfigEvent event)
-    {
-        logDirtBlock = LOG_DIRT_BLOCK.get();
-        magicNumber = MAGIC_NUMBER.get();
-        magicNumberIntroduction = MAGIC_NUMBER_INTRODUCTION.get();
+    public static void onPlayerRespawn(PlayerEvent.PlayerRespawnEvent event) {
+        if (event.getEntity() instanceof ServerPlayer player) {
+            ensureNotVoid(player);
+        }
+    }
 
-        // convert the list of strings into a set of items
-        items = ITEM_STRINGS.get().stream()
-                .map(itemName -> ForgeRegistries.ITEMS.getValue(new ResourceLocation(itemName)))
-                .collect(Collectors.toSet());
+    /* ──────────────────────────────────────────────────────────────────────────────
+     *        Private Helpers
+     * ────────────────────────────────────────────────────────────────────────────*/
+
+    private static void ensureNotVoid(ServerPlayer player) {
+        if (!ModList.get().isLoaded("chunkbychunk")) return;
+
+        // Check for Stasis Tag
+        // If the player is currently waiting for the chunk to generate via SpreaderEvents,
+        // we must NOT interfere. SpreaderEvents has them floating safely at Y=320 with NoGravity.
+        if (player.getTags().contains("cps_waiting_for_chunk")) {
+            ChunkPartySpreader.LOGGER.info("[Chunk Party Spreader] - Skipping void check for {} (In Stasis).", player.getName().getString());
+            return;
+        }
+
+        ServerLevel level = player.serverLevel();
+        BlockPos pos = player.blockPosition();
+
+        level.getChunk(pos);
+        int groundY = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, pos.getX(), pos.getZ());
+        int minY = level.getMinBuildHeight();
+
+        // If ground is effectively at the bottom of the world
+        if (groundY > minY + 1) {
+            return;
+        }
+
+        ChunkPartySpreader.LOGGER.warn("[Chunk Party Spreader] - Void detected under {}. Emergency platform activated at {}", player.getName().getString(), pos);
+
+        // --- Platform Construction ---
+        int floorY = Math.max(level.getSeaLevel() - 1, minY + 1);
+        BlockPos floorCenter = new BlockPos(pos.getX(), floorY, pos.getZ());
+
+        if (level.getBlockState(floorCenter).isAir()) {
+            for (int dx = -1; dx <= 1; dx++) {
+                for (int dz = -1; dz <= 1; dz++) {
+                    level.setBlockAndUpdate(floorCenter.offset(dx, 0, dz), Blocks.STONE.defaultBlockState());
+                }
+            }
+        }
+
+        // --- Emergency Teleport ---
+        player.teleportTo(level,
+                floorCenter.getX() + 0.5,
+                floorCenter.getY() + 1.0,
+                floorCenter.getZ() + 0.5,
+                player.getYRot(),
+                player.getXRot()
+        );
+        player.setDeltaMovement(Vec3.ZERO);
+        player.fallDistance = 0.0f;
+    }
+}
+```
+
+`SpreaderWorldData.java`
+```java
+package com.dawson.chunkpartyspreader;
+
+// (Imports omitted to save token count)
+
+/**
+ * Handles persistent storage for the player spiral index and home chunk assignments.
+ * This data is attached to the Overworld's data storage.
+ */
+public class SpreaderWorldData extends SavedData {
+
+    /* ──────────────────────────────────────────────────────────────────────────────
+     *        Constants and Static Utilities
+     * ────────────────────────────────────────────────────────────────────────────*/
+
+    private static final String DATA_NAME = "chunkpartyspreader";
+
+    /**
+     * Factory method to create a new instance from NBT.
+     */
+    public static SpreaderWorldData load(CompoundTag tag) {
+        SpreaderWorldData data = new SpreaderWorldData();
+
+        // --- 1. Load Spiral Index ---
+        data.currentSpiralIndex = tag.getInt("SpiralIndex");
+
+        // --- 2. Load Player Assignments ---
+        ListTag list = tag.getList("Assignments", Tag.TAG_COMPOUND);
+        for (int i = 0; i < list.size(); i++) {
+            CompoundTag entry = list.getCompound(i);
+            UUID uuid = UUID.fromString(entry.getString("UUID"));
+            int x = entry.getInt("X");
+            int y = entry.getInt("Y");
+            int z = entry.getInt("Z");
+            data.playerAssignments.put(uuid, new BlockPos(x, y, z));
+        }
+
+        return data;
+    }
+
+    /**
+     * Retrieves the singleton instance of the spreader data for the server.
+     * Always retrieves from the Overworld regardless of the provided level's dimension.
+     */
+    public static SpreaderWorldData get(ServerLevel anyLevel) {
+        ServerLevel overworld = anyLevel.getServer().overworld();
+        return overworld.getDataStorage().computeIfAbsent(
+                SpreaderWorldData::load,
+                SpreaderWorldData::new,
+                DATA_NAME
+        );
+    }
+
+    /* ──────────────────────────────────────────────────────────────────────────────
+     *        Fields
+     * ────────────────────────────────────────────────────────────────────────────*/
+
+    private int currentSpiralIndex = 0;
+    private final Map<UUID, BlockPos> playerAssignments = new HashMap<>();
+
+    /* ──────────────────────────────────────────────────────────────────────────────
+     *        Constructors
+     * ────────────────────────────────────────────────────────────────────────────*/
+
+    public SpreaderWorldData() {}
+
+    /* ──────────────────────────────────────────────────────────────────────────────
+     *        Public Methods
+     * ────────────────────────────────────────────────────────────────────────────*/
+
+    @Override
+    public CompoundTag save(CompoundTag tag) {
+        // --- 1. Save Spiral Index ---
+        tag.putInt("SpiralIndex", currentSpiralIndex);
+
+        // --- 2. Save Player Assignments ---
+        ListTag list = new ListTag();
+        for (Map.Entry<UUID, BlockPos> e : playerAssignments.entrySet()) {
+            CompoundTag entry = new CompoundTag();
+            entry.putString("UUID", e.getKey().toString());
+
+            BlockPos pos = e.getValue();
+            entry.putInt("X", pos.getX());
+            entry.putInt("Y", pos.getY());
+            entry.putInt("Z", pos.getZ());
+
+            list.add(entry);
+        }
+        tag.put("Assignments", list);
+
+        return tag;
+    }
+
+    /**
+     * @return The current global counter for the spiral algorithm.
+     */
+    public int getCurrentSpiralIndex() {
+        return currentSpiralIndex;
+    }
+
+    /**
+     * Updates the spiral index and marks the data as dirty for saving.
+     */
+    public void setCurrentSpiralIndex(int idx) {
+        this.currentSpiralIndex = idx;
+        this.setDirty();
+    }
+
+    /**
+     * Retrieves the stored home position for a player.
+     * @return BlockPos or null if no assignment exists.
+     */
+    public BlockPos getAssignment(UUID uuid) {
+        return playerAssignments.get(uuid);
+    }
+
+    /**
+     * Maps a player UUID to a BlockPos and marks the data as dirty.
+     */
+    public void putAssignment(UUID uuid, BlockPos pos) {
+        playerAssignments.put(uuid, pos);
+        this.setDirty();
     }
 }
 ```
@@ -1681,88 +2802,40 @@ public class Config
 ### 📂 `src/main/resources/META-INF/`
 `mods.toml`
 ```toml
-# This is an example mods.toml file. It contains the data relating to the loading mods.
-# There are several mandatory fields (#mandatory), and many more that are optional (#optional).
-# The overall format is standard TOML format, v0.5.0.
-# Note that there are a couple of TOML lists in this file.
-# Find more information on toml format here:  https://github.com/toml-lang/toml
-# The name of the mod loader type to load - for regular FML @Mod mods it should be javafml
-modLoader="javafml" #mandatory
-# A version range to match for said mod loader - for regular FML @Mod it will be the forge version
-loaderVersion="${loader_version_range}" #mandatory This is typically bumped every Minecraft version by Forge. See our download page for lists of versions.
-# The license for you mod. This is mandatory metadata and allows for easier comprehension of your redistributive properties.
-# Review your options at https://choosealicense.com/. All rights reserved is the default copyright stance, and is thus the default here.
+modLoader="javafml"
+loaderVersion="${loader_version_range}"
 license="${mod_license}"
-# A URL to refer people to when problems occur with this mod
-#issueTrackerURL="https://change.me.to.your.issue.tracker.example.invalid/" #optional
-# If your mod is purely client-side and has no multiplayer functionality (be it dedicated servers or Open to LAN),
-# set this to true, and Forge will set the correct displayTest for you and skip loading your mod on dedicated servers.
-#clientSideOnly=true #optional - defaults to false if absent
-# A list of mods - how many allowed here is determined by the individual mod loader
-[[mods]] #mandatory
-# The modid of the mod
-modId="${mod_id}" #mandatory
-# The version number of the mod
-version="${mod_version}" #mandatory
-# A display name for the mod
-displayName="${mod_name}" #mandatory
-# A URL to query for updates for this mod. See the JSON update specification https://docs.minecraftforge.net/en/latest/misc/updatechecker/
-#updateJSONURL="https://change.me.example.invalid/updates.json" #optional
-# A URL for the "homepage" for this mod, displayed in the mod UI
-#displayURL="https://change.me.to.your.mods.homepage.example.invalid/" #optional
-# A file name (in the root of the mod JAR) containing a logo for display
-#logoFile="chunkpartyspreader.png" #optional
-# A text field displayed in the mod UI
-#credits="" #optional
-# A text field displayed in the mod UI
-authors="${mod_authors}" #optional
-# Display Test controls the display for your mod in the server connection screen
-# MATCH_VERSION means that your mod will cause a red X if the versions on client and server differ. This is the default behaviour and should be what you choose if you have server and client elements to your mod.
-# IGNORE_SERVER_VERSION means that your mod will not cause a red X if it's present on the server but not on the client. This is what you should use if you're a server only mod.
-# IGNORE_ALL_VERSION means that your mod will not cause a red X if it's present on the client or the server. This is a special case and should only be used if your mod has no server component.
-# NONE means that no display test is set on your mod. You need to do this yourself, see IExtensionPoint.DisplayTest for more information. You can define any scheme you wish with this value.
-# IMPORTANT NOTE: this is NOT an instruction as to which environments (CLIENT or DEDICATED SERVER) your mod loads on. Your mod should load (and maybe do nothing!) whereever it finds itself.
 displayTest="IGNORE_SERVER_VERSION"
 
-# The description text for the mod (multi line!) (#mandatory)
+[[mods]]
+modId="${mod_id}"
+version="${mod_version}"
+displayName="${mod_name}"
+authors="${mod_authors}"
 description='''${mod_description}'''
-# A dependency - use the . to indicate dependency for a specific modid. Dependencies are optional.
-[[dependencies.${mod_id}]] #optional
-    # the modid of the dependency
-    modId="forge" #mandatory
-    # Does this dependency have to exist - if not, ordering below must be specified
-    mandatory=true #mandatory
-    # The version range of the dependency
-    versionRange="${forge_version_range}" #mandatory
-    # An ordering relationship for the dependency - BEFORE or AFTER required if the dependency is not mandatory
-    # BEFORE - This mod is loaded BEFORE the dependency
-    # AFTER - This mod is loaded AFTER the dependency
-    ordering="NONE"
-    # Side this dependency is applied on - BOTH, CLIENT, or SERVER
-    side="BOTH"
-# Here's another dependency
-[[dependencies.${mod_id}]]
-    modId="minecraft"
-    mandatory=true
-    # This version range declares a minimum of the current minecraft version up to but not including the next major version
-    versionRange="${minecraft_version_range}"
-    ordering="NONE"
-    side="BOTH"
 
-# Features are specific properties of the game environment, that you may want to declare you require. This example declares
-# that your mod requires GL version 3.2 or higher. Other features will be added. They are side aware so declaring this won't
-# stop your mod loading on the server for example.
-#[features.${mod_id}]
-#openGLVersion="[3.2,)"
+# --- Dependencies ---
 
-[[dependencies.${mod_id}]]
-    modId="chunkbychunk"
-    mandatory=false
-    versionRange="[0,)"
-    ordering="AFTER"
-    side="SERVER"
+[[dependencies."${mod_id}"]]
+modId="forge"
+mandatory=true
+versionRange="${forge_version_range}"
+ordering="NONE"
+side="BOTH"
 
+[[dependencies."${mod_id}"]]
+modId="minecraft"
+mandatory=true
+versionRange="${minecraft_version_range}"
+ordering="NONE"
+side="BOTH"
 
+[[dependencies."${mod_id}"]]
+modId="chunkbychunk"
+mandatory=false
+versionRange="[0,)"
+ordering="AFTER"
+side="SERVER"
 ```
 
 End CPS Provided Code

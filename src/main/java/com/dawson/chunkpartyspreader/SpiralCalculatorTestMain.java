@@ -1,35 +1,28 @@
 package com.dawson.chunkpartyspreader;
 
-import com.mojang.logging.LogUtils;
-import net.minecraftforge.fml.ModLoadingContext;
-import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.fml.config.ModConfig;
-import org.slf4j.Logger;
-
 /**
- * The main entry point for the Chunk Party Spreader mod.
- * Handles initial setup and configuration registration.
+ * Standalone test utility to verify the SpiralCalculator logic without launching Minecraft.
  */
-@Mod(ChunkPartySpreader.MODID)
-@SuppressWarnings("removal")
-public class ChunkPartySpreader {
-
-    /* ──────────────────────────────────────────────────────────────────────────────
-     *        Constants and Static Utilities
-     * ────────────────────────────────────────────────────────────────────────────*/
-
-    public static final String MODID = "chunkpartyspreader";
-    public static final Logger LOGGER = LogUtils.getLogger();
+public final class SpiralCalculatorTestMain {
 
     /* ──────────────────────────────────────────────────────────────────────────────
      *        Constructors
      * ────────────────────────────────────────────────────────────────────────────*/
 
+    private SpiralCalculatorTestMain() {}
+
+    /* ──────────────────────────────────────────────────────────────────────────────
+     *        Public Methods
+     * ────────────────────────────────────────────────────────────────────────────*/
+
     /**
-     * Initializes the mod and registers the common configuration file.
+     * Iterates through the first 25 indices and prints the calculated unit coordinates to the console.
      */
-    public ChunkPartySpreader() {
-        // Register the Forge config specification.
-        ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, CPSConfig.SPEC);
+    public static void main(String[] args) {
+        // --- Algorithm Verification ---
+        for (int i = 0; i < 25; i++) {
+            var p = SpiralCalculator.unitForIndex(i);
+            System.out.printf("%d -> (%d,%d)%n", i, p.x(), p.z());
+        }
     }
 }

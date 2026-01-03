@@ -1,3 +1,4 @@
+// --- 1. Plugins and Toolchain ---
 plugins {
     id 'eclipse'
     id 'idea'
@@ -9,93 +10,71 @@ version = mod_version
 group = mod_group_id
 
 base {
-    archivesName = mod_id
+    archivesName = "${mod_id}-${minecraft_version}"
 }
 
-// Mojang ships Java 17 to end users in 1.18+, so your mod should target Java 17.
 java.toolchain.languageVersion = JavaLanguageVersion.of(17)
 
+// --- 2. Minecraft Configuration ---
 minecraft {
     mappings channel: mapping_channel, version: mapping_version
-
-    // This makes IntelliJ/Gradle copy resources into the run dir, so changes apply without rebuilding the jar.
     copyIdeResources = true
 
     runs {
-        client {
+        configureEach {
             workingDirectory project.file('run')
 
             property 'forge.logging.markers', 'REGISTRIES'
             property 'forge.logging.console.level', 'debug'
 
+            property 'mixin.env.remapRefMap', 'true'
+            property 'mixin.env.refMapRemappingEnv', 'searge'
+            property 'mixin.env.refMapRemappingFile', file("$buildDir/createSrgToMcp/output.srg").absolutePath
+        }
+
+        client {
             mods {
-                "${mod_id}" {
-                    source sourceSets.main
-                }
+                "${mod_id}" { source sourceSets.main }
             }
         }
 
         server {
-            workingDirectory project.file('run')
-
-            property 'forge.logging.markers', 'REGISTRIES'
-            property 'forge.logging.console.level', 'debug'
-
             args '--nogui'
-
             mods {
-                "${mod_id}" {
-                    source sourceSets.main
-                }
+                "${mod_id}" { source sourceSets.main }
             }
         }
 
-        // Optional: server with GameTests enabled
         gameTestServer {
-            workingDirectory project.file('run')
-
-            property 'forge.logging.markers', 'REGISTRIES'
-            property 'forge.logging.console.level', 'debug'
-
             args '--nogui'
-
             mods {
-                "${mod_id}" {
-                    source sourceSets.main
-                }
+                "${mod_id}" { source sourceSets.main }
             }
         }
 
-        // Optional: generates data (loot tables, tags, etc.)
         data {
-            workingDirectory project.file('run')
-
-            property 'forge.logging.markers', 'REGISTRIES'
-            property 'forge.logging.console.level', 'debug'
-
-            args '--mod', mod_id, '--all',
-                    '--output', file('src/generated/resources/'),
-                    '--existing', file('src/main/resources/')
-
+            args '--mod', mod_id, '--all', '--output', file('src/generated/resources/'), '--existing', file('src/main/resources/')
             mods {
-                "${mod_id}" {
-                    source sourceSets.main
-                }
+                "${mod_id}" { source sourceSets.main }
             }
         }
     }
 }
 
+// --- 3. Dependencies and Repositories ---
 sourceSets.main.resources { srcDir 'src/generated/resources' }
 
 repositories {
     mavenCentral()
+    maven { url = "https://cursemaven.com" }
 }
 
 dependencies {
     minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+    implementation fg.deobf("curse.maven:chunk-by-chunk-565866:5168269")
 }
 
+// --- 4. Task Configurations ---
 tasks.named('processResources', ProcessResources).configure {
     def replaceProperties = [
             minecraft_version      : minecraft_version,
@@ -138,7 +117,6 @@ jar {
 
 jar.finalizedBy('reobfJar')
 
-// Publishing is optional; leaving it configured makes it easy to publish to a local repo folder.
 publishing {
     publications {
         register('mavenJava', MavenPublication) {

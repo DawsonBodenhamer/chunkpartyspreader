@@ -18,13 +18,13 @@
     }
   },
   "main": {
-    "timestamp": 1767477128.9074106,
-    "total_files": 11,
+    "timestamp": 1767635310.3007646,
+    "total_files": 17,
     "full_stats": {
       ".gradle": 2,
       ".properties": 1,
       ".txt": 4,
-      ".java": 2,
+      ".java": 8,
       ".mcmeta": 1,
       ".toml": 1
     },
