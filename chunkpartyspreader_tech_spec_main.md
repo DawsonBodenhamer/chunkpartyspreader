@@ -2,8 +2,8 @@
 
 **Target Platform:** Minecraft 1.20.1 (Forge)
 **Recommended Forge Version:** 47.1.3+ (Targeting 47.4.13)
-**Mod ID:** `chunkpartyspreader` (Proposed)
-**Dependencies:** `chunkbychunk` (Required for generation command)
+**Mod ID:** `chunkpartyspreader`
+**Dependencies:** `chunkbychunk`
 
 ---
 
