@@ -45,7 +45,7 @@ public final class ChunkByChunkCompat {
         ServerLevel overworld = server.overworld();
         ChunkGenerator cg = overworld.getChunkSource().getGenerator();
 
-        // 1. Verify we are actually running on a CBC world
+        // 1. Verify actually running on a CBC world
         if (!(cg instanceof SkyChunkGenerator skyGen)) {
             ChunkPartySpreader.LOGGER.info(
                     "[Chunk Party Spreader] - CBC detected but overworld generator is not SkyChunkGenerator: {}",
@@ -60,7 +60,7 @@ public final class ChunkByChunkCompat {
             return;
         }
 
-        // 2. Extract existing settings so we don't break the user's config
+        // 2. Extract existing settings to prevent breaking the user's config
         ResourceKey<Level> generationLevel = skyGen.getGenerationLevel();
         SkyChunkGenerator.EmptyGenerationType generationType = skyGen.getGenerationType();
         Block sealBlock = skyGen.getSealBlock();

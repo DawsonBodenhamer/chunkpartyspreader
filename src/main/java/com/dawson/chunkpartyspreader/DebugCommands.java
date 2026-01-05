@@ -53,7 +53,7 @@ public class DebugCommands {
         String name = StringArgumentType.getString(context, "name");
         ServerLevel level = context.getSource().getLevel();
 
-        // Generate a consistent UUID based on the name so we can test persistence
+        // Generate a consistent UUID based on the name to test persistence
         UUID fakeId = UUID.nameUUIDFromBytes(("OfflinePlayer:" + name).getBytes(StandardCharsets.UTF_8));
         GameProfile profile = new GameProfile(fakeId, name);
 

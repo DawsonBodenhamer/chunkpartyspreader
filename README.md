@@ -30,7 +30,7 @@ Found in `config/chunkpartyspreader-common.toml`.
 **"Do I need 50 friends to test this?"**
 No. You have us.
 
-We have included a suite of **Simulation Commands** (`/cps_sim`) that allow you to fake the entire join process without needing a single other person online.
+Included a suite of **Simulation Commands** (`/cps_sim`) that allow you to fake the entire join process without needing a single other person online.
 
 ### Prerequisites
 *   You must have **OP (Level 2+)** permissions.

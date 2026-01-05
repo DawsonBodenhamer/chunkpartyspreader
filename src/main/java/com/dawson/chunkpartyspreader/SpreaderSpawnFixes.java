@@ -18,7 +18,7 @@ public final class SpreaderSpawnFixes {
 
     private SpreaderSpawnFixes() {}
 
-    // Guard to prevent infinite recursion when we re-fire the set spawn event
+    // Guard to prevent infinite recursion when re-firing the set spawn event
     private static final ThreadLocal<Boolean> IS_ADJUSTING_SPAWN = ThreadLocal.withInitial(() -> false);
 
     /* ──────────────────────────────────────────────────────────────────────────────
@@ -28,11 +28,11 @@ public final class SpreaderSpawnFixes {
     // --- 1. Fix Bed Respawn (Keep spawn even if bed broken) ---
     @SubscribeEvent
     public static void onSetSpawn(PlayerSetSpawnEvent event) {
-        // If we are currently adjusting, ignore to prevent loop
+        // If currently adjusting, ignore to prevent loop
         if (IS_ADJUSTING_SPAWN.get()) return;
 
-        // We only care about ensuring the spawn is FORCED (survives bed breaking)
-        // If it's already forced, or if the new spawn is null (clearing spawn), we do nothing.
+        // Only care about ensuring the spawn is FORCED (survives bed breaking)
+        // If it's already forced, or if the new spawn is null (clearing spawn), do nothing.
         if (event.isForced() || event.getNewSpawn() == null) return;
 
         // Check if the target is a Bed
@@ -40,13 +40,12 @@ public final class SpreaderSpawnFixes {
         if (level.isClientSide) return;
 
         BlockPos newPos = event.getNewSpawn();
-        // Just blind-force it. If the player is setting a spawn, we want it to stick.
+        // Just blind-force it. If the player is setting a spawn, it should stick.
         // This covers Beds and Anchors.
 
         ChunkPartySpreader.LOGGER.info("[Chunk Party Spreader] - Intercepting Spawn Set at {}. Forcing persistence.", newPos);
 
-        // We must cancel the event to stop the original "non-forced" set,
-        // and apply our own "forced" set.
+        // Cancel the event to stop the original "non-forced" set and apply "forced" set.
         event.setCanceled(true);
 
         IS_ADJUSTING_SPAWN.set(true);
@@ -85,7 +84,7 @@ public final class SpreaderSpawnFixes {
 
         // Check for Stasis Tag
         // If the player is currently waiting for the chunk to generate via SpreaderEvents,
-        // we must NOT interfere. SpreaderEvents has them floating safely at Y=320 with NoGravity.
+        // Do not interfere. SpreaderEvents has them floating safely at Y=320 with NoGravity.
         if (player.getTags().contains("cps_waiting_for_chunk")) {
             ChunkPartySpreader.LOGGER.info("[Chunk Party Spreader] - Skipping void check for {} (In Stasis).", player.getName().getString());
             return;
