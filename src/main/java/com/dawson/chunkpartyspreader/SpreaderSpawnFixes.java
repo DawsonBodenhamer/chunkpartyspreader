@@ -3,12 +3,10 @@ package com.dawson.chunkpartyspreader;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.event.entity.player.PlayerEvent;
-import net.minecraftforge.event.entity.player.PlayerSetSpawnEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.ModList;
 import net.minecraftforge.fml.common.Mod;
@@ -25,41 +23,7 @@ public final class SpreaderSpawnFixes {
      *        Event Handlers
      * ────────────────────────────────────────────────────────────────────────────*/
 
-    // --- 1. Fix Bed Respawn (Keep spawn even if bed broken) ---
-    @SubscribeEvent
-    public static void onSetSpawn(PlayerSetSpawnEvent event) {
-        // If currently adjusting, ignore to prevent loop
-        if (IS_ADJUSTING_SPAWN.get()) return;
-
-        // Only care about ensuring the spawn is FORCED (survives bed breaking)
-        // If it's already forced, or if the new spawn is null (clearing spawn), do nothing.
-        if (event.isForced() || event.getNewSpawn() == null) return;
-
-        // Check if the target is a Bed
-        Level level = event.getEntity().level();
-        if (level.isClientSide) return;
-
-        BlockPos newPos = event.getNewSpawn();
-        // Just blind-force it. If the player is setting a spawn, it should stick.
-        // This covers Beds and Anchors.
-
-        ChunkPartySpreader.LOGGER.info("[Chunk Party Spreader] - Intercepting Spawn Set at {}. Forcing persistence.", newPos);
-
-        // Cancel the event to stop the original "non-forced" set and apply "forced" set.
-        event.setCanceled(true);
-
-        IS_ADJUSTING_SPAWN.set(true);
-        try {
-            if (event.getEntity() instanceof ServerPlayer sp) {
-                // Call the method again, but with forced = true
-                sp.setRespawnPosition(event.getSpawnLevel(), newPos, 0.0f, true, true);
-            }
-        } finally {
-            IS_ADJUSTING_SPAWN.set(false);
-        }
-    }
-
-    // --- 2. Void Safety Platform Checks ---
+    // --- Void Safety Platform Checks ---
 
     @SubscribeEvent
     public static void onPlayerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
