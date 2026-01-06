@@ -10,6 +10,7 @@ Instead of piling everyone onto a single chaotic spawn island, CPS acts as a soc
 *   **Hydrophobic Logic:** (Configurable) If a player's assigned coordinate lands in an **Ocean** or **River**, the mod says "Absolutely not," skips that index, and finds them dry land.
 *   **Persistence:** Remembers exactly where every player "lives." If they die without a bed, they respawn at their personal chunk, not world spawn.
 *   **Chunk By Chunk Integration:** Directly interfaces with CBC to trigger single-chunk generation commands.
+*   **Side:** Server-Side Only (Clients do not need to install this).
 
 ---
 
