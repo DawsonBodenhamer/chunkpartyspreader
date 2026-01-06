@@ -18,17 +18,19 @@
     }
   },
   "main": {
-    "timestamp": 1767649128.7703419,
+    "timestamp": 1767709225.0972297,
     "total_files": 19,
     "full_stats": {
-      ".md": 1,
+      ".md": 2,
       ".gradle": 2,
       ".properties": 1,
-      ".txt": 4,
+      ".txt": 2,
       ".java": 9,
       ".mcmeta": 1,
       ".toml": 1
     },
-    "omitted_stats": {}
+    "omitted_stats": {
+      ".png": 1
+    }
   }
 }
